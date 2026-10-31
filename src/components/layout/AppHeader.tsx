@@ -5,7 +5,8 @@ import {
 } from 'lucide-react'
 import { useApp } from '@/store/AppContext'
 import { cx, timeAgo, todayLabel } from '@/lib/format'
-import { PRODUCTS, SERVICE_AGENTS } from '@/data/demo'
+import { useApiQuery } from '@/store/DataStore'
+import type { ApiProduct, ApiServiceAgent } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import {
@@ -18,7 +19,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/': 'Overview', '/inventory': 'Inventory', '/analytics': 'Sales Analytics', '/insights': 'AI Insights',
   '/agents': 'Agent Marketplace', '/suppliers': 'Supplier Marketplace', '/negotiations': 'Negotiations',
   '/activity': 'Agent Activity', '/wallet': 'Wallet & Transactions', '/escrow': 'Escrow',
-  '/reports': 'Reports', '/settings': 'Settings', '/import': 'Import Data',
+  '/settings': 'Settings', '/import': 'Import Data',
 }
 
 const SEARCH_PAGES = [
@@ -27,7 +28,7 @@ const SEARCH_PAGES = [
   { label: 'Agent Marketplace', route: '/agents' }, { label: 'Supplier Marketplace', route: '/suppliers' },
   { label: 'Negotiations', route: '/negotiations' }, { label: 'Agent Activity', route: '/activity' },
   { label: 'Wallet & Transactions', route: '/wallet' }, { label: 'Escrow', route: '/escrow' },
-  { label: 'Reports', route: '/reports' }, { label: 'Settings', route: '/settings' },
+  { label: 'Reports', route: '/activity?tab=reports' }, { label: 'Settings', route: '/settings' },
   { label: 'Import Data', route: '/import' },
 ]
 
@@ -36,22 +37,24 @@ export function AppHeader() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
-  const [store, setStore] = useState('UrbanNest Living')
+  const store = auth.storeName || 'My store'
   const searchRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
 
-  const crumbs = ROUTE_TITLES[location.pathname] ?? 'Overview'
+  const productsQ = useApiQuery<{ products: ApiProduct[] }>('/api/products', ['products'])
+  const agentsQ = useApiQuery<{ agents: ApiServiceAgent[] }>('/api/service-agents', ['agents'])
+  const crumbs = ROUTE_TITLES[location.pathname] ?? (location.pathname.startsWith('/negotiations') ? 'Negotiations' : 'Overview')
   const unread = notifications.filter((n) => !n.read).length
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return []
     const pages = SEARCH_PAGES.filter((p) => p.label.toLowerCase().includes(q)).map((p) => ({ kind: 'Page', label: p.label, route: p.route }))
-    const products = PRODUCTS.filter((p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)).map((p) => ({ kind: 'Product', label: `${p.name} · ${p.sku}`, route: `/inventory?q=${encodeURIComponent(p.name)}` }))
-    const agents = SERVICE_AGENTS.filter((a) => a.name.toLowerCase().includes(q)).map((a) => ({ kind: 'Agent', label: a.name, route: '/agents' }))
+    const products = (productsQ.data?.products ?? []).filter((p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)).map((p) => ({ kind: 'Product', label: `${p.name} · ${p.sku}`, route: `/inventory?q=${encodeURIComponent(p.sku)}` }))
+    const agents = (agentsQ.data?.agents ?? []).filter((a) => a.name.toLowerCase().includes(q)).map((a) => ({ kind: 'Agent', label: a.name, route: '/agents' }))
     return [...pages, ...products, ...agents].slice(0, 8)
-  }, [query])
+  }, [query, productsQ.data, agentsQ.data])
 
   const go = (route: string) => {
     setSearchOpen(false)
@@ -150,16 +153,14 @@ export function AppHeader() {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>Sales channels</DropdownMenuLabel>
-          {['UrbanNest Living', 'UrbanNest Outlet'].map((s) => (
-            <DropdownMenuItem key={s} onSelect={() => setStore(s)} className="gap-2">
-              <span className={cx('h-1.5 w-1.5 rounded-full', s === store ? 'bg-success' : 'bg-muted-foreground/40')} />
-              {s}
-              {s === store && <span className="ml-auto text-[10px] text-muted-foreground">current</span>}
-            </DropdownMenuItem>
-          ))}
+          <DropdownMenuLabel>Your store</DropdownMenuLabel>
+          <DropdownMenuItem className="gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-success" />
+            {store}
+            <span className="ml-auto text-[10px] text-muted-foreground">current</span>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => navigate('/settings')}>Manage stores…</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => navigate('/settings')}>Business profile…</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -211,7 +212,7 @@ export function AppHeader() {
           <DropdownMenuItem onSelect={() => navigate('/settings')}><User className="mr-2 h-4 w-4" /> Profile & mandate</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => navigate('/settings')}><Settings2 className="mr-2 h-4 w-4" /> Settings</DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => { logout(); navigate('/login') }} className="text-danger focus:text-danger">
+          <DropdownMenuItem onSelect={async () => { await logout(); navigate('/login') }} className="text-danger focus:text-danger">
             <LogOut className="mr-2 h-4 w-4" /> Log out
           </DropdownMenuItem>
         </DropdownMenuContent>

@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router'
 import {
   LayoutDashboard, Package, BarChart3, Sparkles, Bot, Factory, Handshake, Activity,
-  Wallet, ShieldCheck, FileText, Settings, Upload, ChevronsLeft, ChevronsRight, BrainCircuit, LogOut,
+  Wallet, ShieldCheck, Settings, Upload, ChevronsLeft, ChevronsRight, BrainCircuit, LogOut,
 } from 'lucide-react'
 import { useApp } from '@/store/AppContext'
 import { cx } from '@/lib/format'
@@ -32,7 +32,6 @@ const NAV_SECTIONS: { label: string; items: { to: string; label: string; icon: t
     items: [
       { to: '/wallet', label: 'Wallet & Transactions', icon: Wallet },
       { to: '/escrow', label: 'Escrow', icon: ShieldCheck },
-      { to: '/reports', label: 'Reports', icon: FileText },
     ],
   },
   {
@@ -133,7 +132,7 @@ export function SidebarContent({ collapsed, onNavigate }: { collapsed?: boolean;
             <div className="mt-2.5 flex items-center justify-between">
               <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{auth.plan}</span>
               <button
-                onClick={() => { logout(); navigate('/login') }}
+                onClick={async () => { await logout(); navigate('/login') }}
                 className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                 aria-label="Log out"
               >
@@ -145,7 +144,7 @@ export function SidebarContent({ collapsed, onNavigate }: { collapsed?: boolean;
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
               <button
-                onClick={() => { logout(); navigate('/login') }}
+                onClick={async () => { await logout(); navigate('/login') }}
                 className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-brand-soft to-brand text-xs font-bold text-white"
                 aria-label={`${auth.sellerName} — log out`}
               >
