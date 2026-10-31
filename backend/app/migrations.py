@@ -62,11 +62,19 @@ def _m4_escrow(conn: Connection) -> None:
     )
 
 
+def _m5_repricing(conn: Connection) -> None:
+    # price_changes is a new table (created by create_all).
+    _add_column(conn, "mandates", "max_discount_pct", "FLOAT DEFAULT 25")
+    _add_column(conn, "mandates", "pricing_mode", "VARCHAR(16) DEFAULT 'recommendation'")
+    conn.exec_driver_sql("UPDATE mandates SET pricing_mode = 'autonomous' WHERE auto_repricing = 1")
+
+
 MIGRATIONS: list[tuple[int, Callable[[Connection], None]]] = [
     (1, _m1_gstin_and_location),
     (2, _m2_wallet_daily_limit),
     (3, _m3_business_type),
     (4, _m4_escrow),
+    (5, _m5_repricing),
 ]
 
 

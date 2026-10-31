@@ -3,51 +3,73 @@
  * selling, AI pricing with safeguards, festival campaigns, supplier scoring,
  * autonomy levels, the approval queue and report history.
  *
- * These still run in the browser on seeded demo data (kept in state and
- * localStorage, as originally built). They are combined with the backend-backed
- * AppContext through this hook: activity they log is saved to the backend, the
- * emergency kill switch pauses agents on the server, and the catalogue includes
- * products stored in the backend.
+ * Backend-backed so far: product prices and price history (/api/products/{sku}/price,
+ * /api/price-history), pricing rules (stored in the seller's mandate), the
+ * catalogue, activity logging and the emergency kill switch. Marketplace
+ * listings/orders, festivals, supplier scoring, the approval queue and report
+ * history still run in the browser on seeded demo data and move to the backend
+ * in later phases.
  */
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { PRODUCTS, type ActivityEvent, type Product } from '@/data/demo'
+import { type ActivityEvent, type Product } from '@/data/demo'
+import { api, ApiError, type ApiMandate, type ApiPriceApprovalNeeded, type ApiPriceChange } from '@/lib/api'
+import { useApiQuery, useDataStore } from '@/store/DataStore'
 import {
   type MarketplaceConfig, type MarketplaceListing, type MarketplaceOrder,
   type InventoryMovement, type PricingRuleConfig, type PriceChangeLog, type FestivalEvent,
   type SupplierPurchaseRecord, type SupplierDeliveryRecord, type SupplierRelationshipRecord,
   type AutonomyLevel, type SignedMandate, type ApprovalQueueItem, type GeneratedReportRecord,
   INITIAL_MARKETPLACES, DEFAULT_PRICING_RULES, INITIAL_SIGNED_MANDATE,
-  seedMarketplaceListings, seedMarketplaceOrders, seedPriceHistory,
+  seedMarketplaceListings, seedMarketplaceOrders,
   seedFestivalCalendar, seedSupplierHistory, seedApprovalQueue, seedReportHistory,
   calculateSupplierScore,
 } from '@/data/models'
 
 const AUTONOMY_KEY = 'ecommind.autonomy'
-const PRICING_RULES_KEY = 'ecommind.pricing_rules'
 const REPORT_HISTORY_KEY = 'ecommind.report_history'
 
 export interface CommerceDeps {
   auth: { sellerName: string; storeName: string }
-  extraProducts: Product[]
+  catalog: Product[]
   addActivity: (e: Omit<ActivityEvent, 'id' | 'time'>) => void
   pauseAgents: () => Promise<void>
+  /** Signed in with a business: backend reads are allowed. */
+  enabled: boolean
 }
 
-export function useCommerce({ auth, extraProducts, addActivity, pauseAgents }: CommerceDeps) {
+export interface RepriceResult { success: boolean; queuedForApproval?: boolean; error?: string }
+
+const rupees = (paise: number) => Math.round(paise) / 100
+const toPaise = (rupee: number) => Math.round(rupee * 100)
+
+export function useCommerce({ auth, catalog, addActivity, pauseAgents, enabled }: CommerceDeps) {
+  const store = useDataStore()
   // Enhanced Sub-Systems State
   const [marketplaces, setMarketplaces] = useState<MarketplaceConfig[]>(INITIAL_MARKETPLACES)
   const [marketplaceListings, setMarketplaceListings] = useState<MarketplaceListing[]>([])
   const [marketplaceOrders, setMarketplaceOrders] = useState<MarketplaceOrder[]>([])
   const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>([])
-  const [pricingRules, setPricingRules] = useState<PricingRuleConfig>(() => {
-    try {
-      const raw = localStorage.getItem(PRICING_RULES_KEY)
-      if (raw) return JSON.parse(raw)
-    } catch { /* ignore */ }
-    return DEFAULT_PRICING_RULES
-  })
-  const [priceHistory, setPriceHistory] = useState<PriceChangeLog[]>([])
+  // Pricing rules are the seller's mandate; price history is the backend's record of applied changes.
+  const mandateQ = useApiQuery<{ mandate: ApiMandate }>(enabled ? '/api/mandate' : null, ['mandate'])
+  const historyQ = useApiQuery<{ changes: ApiPriceChange[] }>(enabled ? '/api/price-history?limit=200' : null, ['products'])
+  const pricingRules = useMemo<PricingRuleConfig>(() => {
+    const m = mandateQ.data?.mandate
+    if (!m) return DEFAULT_PRICING_RULES
+    return { mode: m.pricingMode, minGrossMarginPct: m.minGrossMarginPct, maxDiscountPct: m.maxDiscountPct,
+      maxPriceChangePct: m.maxPriceChangePct, enabled: !m.agentsPaused, autoApproveWithinBand: m.pricingMode === 'autonomous' }
+  }, [mandateQ.data])
+  const priceHistory = useMemo<PriceChangeLog[]>(() => (historyQ.data?.changes ?? []).map((c) => {
+    const p = catalog.find((x) => x.sku === c.sku)
+    const monthly = Math.round(rupees(c.newPrice - c.oldPrice) * (p?.avgDailySales ?? 0) * 30)
+    return {
+      id: c.id, timestamp: c.createdAt, sku: c.sku, productName: c.productName, oldPrice: rupees(c.oldPrice), newPrice: rupees(c.newPrice),
+      pctChange: c.pctChange, agentResponsible: c.actor, reason: c.reason, status: c.sellerOverride ? 'approved' : 'executed',
+      expectedProfitImpact: `${monthly >= 0 ? '+' : '−'}₹${Math.abs(monthly).toLocaleString('en-IN')}/month`,
+      safeguardsChecked: { minMarginMet: c.safeguards.minMarginMet, maxDiscountMet: c.safeguards.maxDiscountMet, maxChangeMet: c.safeguards.maxChangeMet, commissionsIncluded: false },
+      marginPct: c.marginPct, sellerOverride: c.sellerOverride, source: c.source,
+    }
+  }), [historyQ.data, catalog])
   const [festivalEvents, setFestivalEvents] = useState<FestivalEvent[]>(seedFestivalCalendar())
 
   const [supplierPurchases, setSupplierPurchases] = useState<SupplierPurchaseRecord[]>([])
@@ -78,7 +100,6 @@ export function useCommerce({ auth, extraProducts, addActivity, pauseAgents }: C
     setMarketplaces(INITIAL_MARKETPLACES)
     setMarketplaceListings(seedMarketplaceListings())
     setMarketplaceOrders(seedMarketplaceOrders())
-    setPriceHistory(seedPriceHistory())
     setFestivalEvents(seedFestivalCalendar())
     const sup = seedSupplierHistory()
     setSupplierPurchases(sup.purchases)
@@ -91,7 +112,7 @@ export function useCommerce({ auth, extraProducts, addActivity, pauseAgents }: C
 
   /** Clear per-seller commerce data on sign-out. */
   const resetCommerce = useCallback(() => {
-    setMarketplaceListings([]); setMarketplaceOrders([]); setInventoryMovements([]); setPriceHistory([])
+    setMarketplaceListings([]); setMarketplaceOrders([]); setInventoryMovements([])
     setSupplierPurchases([]); setSupplierDeliveries([]); setSupplierRelationships({}); setApprovalQueue([])
     setSignedMandate(INITIAL_SIGNED_MANDATE)
   }, [])
@@ -133,7 +154,7 @@ export function useCommerce({ auth, extraProducts, addActivity, pauseAgents }: C
   }, [])
 
   const simulateMarketplaceOrder = useCallback((marketplace: MarketplaceConfig['id'], sku: string, units = 1) => {
-    const product = [...PRODUCTS, ...extraProducts].find((p) => p.sku === sku)
+    const product = catalog.find((p) => p.sku === sku)
     if (!product) return { success: false, error: 'Product SKU not found' }
     if (product.stock < units) {
       toast.error('Overselling prevented!', { description: `Stock (${product.stock}) is insufficient for ${units} units order.` })
@@ -221,182 +242,109 @@ export function useCommerce({ auth, extraProducts, addActivity, pauseAgents }: C
     })
 
     return { success: true }
-  }, [extraProducts, marketplaceListings, addActivity])
+  }, [catalog, marketplaceListings, addActivity])
 
   // Feature 4: AI Dynamic Pricing with strict financial safeguards
-  const updatePricingRules = useCallback((rules: Partial<PricingRuleConfig>) => {
-    setPricingRules((prev) => {
-      const next = { ...prev, ...rules }
-      localStorage.setItem(PRICING_RULES_KEY, JSON.stringify(next))
-      return next
-    })
-    toast.success('Pricing rules updated', { description: 'Safeguard margins and discount limits refreshed.' })
-  }, [])
-
-  const executeReprice = useCallback((
-    sku: string,
-    newPrice: number,
-    agentName: string,
-    reason: string
-  ): { success: boolean; queuedForApproval?: boolean; error?: string } => {
-    const all = [...PRODUCTS, ...extraProducts]
-    const p = all.find((x) => x.sku === sku)
-    if (!p) return { success: false, error: 'Product SKU not found' }
-
-    // 1. Check max price change %
-    const pctChange = Math.round(((newPrice - p.price) / p.price) * 1000) / 10
-    const maxChangeAllowed = pricingRules.maxPriceChangePct
-    const withinChangeBand = Math.abs(pctChange) <= maxChangeAllowed
-
-    // 2. Check gross profit margin with commissions and shipping included
-    const estCommission = newPrice * 0.12
-    const estShipping = 45
-    const estPackaging = 15
-    const estTax = newPrice * 0.18
-    const netEarnings = newPrice - p.cost - estCommission - estShipping - estPackaging - (estTax * 0.1)
-    const marginPct = Math.round((netEarnings / newPrice) * 1000) / 10
-
-    const minMarginAllowed = pricingRules.minGrossMarginPct
-    const marginMet = marginPct >= minMarginAllowed
-
-    // 3. Check discount limit
-    const discountPct = pctChange < 0 ? Math.abs(pctChange) : 0
-    const discountMet = discountPct <= pricingRules.maxDiscountPct
-
-    const safeguards = {
-      minMarginMet: marginMet,
-      maxDiscountMet: discountMet,
-      maxChangeMet: withinChangeBand,
-      commissionsIncluded: true,
+  const updatePricingRules = useCallback(async (rules: Partial<PricingRuleConfig>) => {
+    const body: Partial<ApiMandate> = {}
+    if (rules.mode) body.pricingMode = rules.mode
+    if (rules.minGrossMarginPct !== undefined) body.minGrossMarginPct = rules.minGrossMarginPct
+    if (rules.maxDiscountPct !== undefined) body.maxDiscountPct = rules.maxDiscountPct
+    if (rules.maxPriceChangePct !== undefined) body.maxPriceChangePct = rules.maxPriceChangePct
+    try {
+      const res = await api<{ mandate: ApiMandate }>('/api/mandate', { method: 'PATCH', body })
+      store.setData('/api/mandate', { ...(mandateQ.data ?? {}), mandate: res.mandate })
+      store.invalidate('mandate')
+      if (rules.mode) toast.success('Pricing mode saved', { description: `Stored in your mandate: ${rules.mode}.` })
+    } catch (e) {
+      toast.error('Couldn’t save pricing rules', { description: e instanceof ApiError ? e.message : undefined })
+      store.invalidate('mandate')
     }
+  }, [store, mandateQ.data])
 
-    const shouldQueue =
-      autonomyLevel === 1 ||
-      pricingRules.mode === 'manual' ||
-      pricingRules.mode === 'recommendation' ||
-      !marginMet ||
-      !discountMet ||
-      !withinChangeBand
-
-    if (shouldQueue) {
-      const queueItem: ApprovalQueueItem = {
-        id: `APR-${Date.now()}`,
-        createdAt: new Date().toISOString(),
-        agentName,
-        actionType: 'repricing',
-        title: `Reprice ${p.name}: ₹${p.price} → ₹${newPrice} (${pctChange >= 0 ? '+' : ''}${pctChange}%)`,
-        description: `${reason}${!marginMet ? ` (Flag: Projected margin ${marginPct}% < policy floor ${minMarginAllowed}%)` : ''}`,
-        details: { sku, oldPrice: p.price, newPrice, pctChange, marginPct, safeguards },
-        financialImpact: Math.round((newPrice - p.price) * p.avgDailySales * 30),
-        status: 'pending',
-      }
-      setApprovalQueue((prev) => [queueItem, ...prev])
-      addActivity({
-        agent: agentName,
-        action: `Repricing queued for approval: ${p.name}`,
-        product: p.name,
-        status: 'warning',
-        detail: `Proposed ₹${p.price} → ₹${newPrice}. Reason: ${reason}. Awaiting seller approval in queue.`,
-      })
-      toast.warning('Price change queued for approval', {
-        description: !marginMet ? `Margin ${marginPct}% violates minimum floor (${minMarginAllowed}%). Requires explicit seller sign-off.` : 'Awaiting seller review in Approval Queue.',
-      })
-      return { success: false, queuedForApproval: true }
+  const queuePriceApproval = useCallback((d: ApiPriceApprovalNeeded, agentName: string, reason: string, message: string) => {
+    const queueItem: ApprovalQueueItem = {
+      id: `APR-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      agentName,
+      actionType: 'repricing',
+      title: `Reprice ${d.productName}: ₹${rupees(d.oldPrice)} → ₹${rupees(d.newPrice)} (${d.safeguards.pctChange >= 0 ? '+' : ''}${d.safeguards.pctChange}%)`,
+      description: `${reason} · ${message}`,
+      details: { sku: d.sku, oldPrice: rupees(d.oldPrice), newPrice: rupees(d.newPrice), pctChange: d.safeguards.pctChange, marginPct: d.safeguards.marginPct, safeguards: d.safeguards, reason },
+      financialImpact: rupees(d.monthlyImpact),
+      status: 'pending',
     }
-
-    // Apply autonomous repricing
-    const oldPrice = p.price
-    p.price = newPrice
-
-    // Update marketplace listings
-    setMarketplaceListings((prev) =>
-      prev.map((l) => (l.sku === sku ? { ...l, price: newPrice, lastSyncAt: new Date().toISOString() } : l))
-    )
-
-    // Log history
-    const log: PriceChangeLog = {
-      id: `PRC-${Date.now().toString().slice(-4)}`,
-      timestamp: new Date().toISOString(),
-      sku,
-      productName: p.name,
-      oldPrice,
-      newPrice,
-      pctChange,
-      agentResponsible: agentName,
-      reason,
-      status: 'executed',
-      expectedProfitImpact: `${pctChange >= 0 ? '+' : ''}₹${Math.abs(Math.round((newPrice - oldPrice) * p.avgDailySales * 30)).toLocaleString('en-IN')}/month`,
-      safeguardsChecked: safeguards,
-    }
-    setPriceHistory((prev) => [log, ...prev])
-
+    setApprovalQueue((prev) => [queueItem, ...prev])
     addActivity({
       agent: agentName,
-      action: `Repriced ${p.name}: ₹${oldPrice} → ₹${newPrice} (${pctChange >= 0 ? '+' : ''}${pctChange}%)`,
-      product: p.name,
-      status: 'success',
-      detail: `${reason} · All backend safeguards verified (Margin: ${marginPct}%).`,
+      action: `Repricing queued for approval: ${d.productName}`,
+      product: d.productName,
+      status: 'warning',
+      detail: `Proposed ₹${rupees(d.oldPrice)} → ₹${rupees(d.newPrice)}. ${message}`,
     })
+  }, [addActivity])
 
-    toast.success(`Repriced ${p.name}`, { description: `New price ₹${newPrice} live across marketplaces.` })
-    return { success: true }
-  }, [extraProducts, pricingRules, autonomyLevel, addActivity])
+  /** Change a product's price through the backend. Prices in rupees. */
+  const executeReprice = useCallback(async (sku: string, newPrice: number, agentName: string, reason: string): Promise<RepriceResult> => {
+    const seller = agentName.toLowerCase().startsWith('seller')
+    try {
+      const res = await api<{ change: ApiPriceChange }>(`/api/products/${encodeURIComponent(sku)}/price`, {
+        body: { newPrice: toPaise(newPrice), reason, source: seller ? 'seller' : 'agent', actor: seller ? undefined : agentName },
+      })
+      const c = res.change
+      store.invalidate('products', 'analytics', 'activity')
+      setMarketplaceListings((prev) => prev.map((l) => (l.sku === c.sku ? { ...l, price: rupees(c.newPrice), lastSyncAt: new Date().toISOString() } : l)))
+      toast.success(`Repriced ${c.productName}`, { description: `₹${rupees(c.oldPrice)} → ₹${rupees(c.newPrice)} · gross margin ${c.marginPct}%. Saved to your catalogue.` })
+      return { success: true }
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'needs_approval' && e.details) {
+        queuePriceApproval(e.details as ApiPriceApprovalNeeded, agentName, reason, e.message)
+        toast.warning('Price change queued for approval', { description: e.message })
+        return { success: false, queuedForApproval: true }
+      }
+      const msg = e instanceof ApiError ? e.message : 'The price wasn’t changed. Try again.'
+      toast.error('Price not changed', { description: msg })
+      return { success: false, error: msg }
+    }
+  }, [store, queuePriceApproval])
 
   // Feature 5: Festival Intelligence & Campaign Execution
-  const applyFestivalCampaign = useCallback((festivalId: string, discountPct: number, skus: string[]) => {
+  const applyFestivalCampaign = useCallback(async (festivalId: string, discountPct: number, skus: string[]) => {
     const fest = festivalEvents.find((f) => f.id === festivalId)
     if (!fest) return { success: false, message: 'Festival not found' }
-
-    if (discountPct > pricingRules.maxDiscountPct) {
-      // Queue for approval
-      const queueItem: ApprovalQueueItem = {
-        id: `APR-FEST-${Date.now()}`,
-        createdAt: new Date().toISOString(),
-        agentName: 'Festival Intelligence Agent',
-        actionType: 'discount',
-        title: `Festival Campaign: ${fest.name} (${discountPct}% discount)`,
-        description: `Proposed ${discountPct}% promotional discount exceeds standard mandate limit (${pricingRules.maxDiscountPct}%). Products: ${skus.join(', ')}`,
-        financialImpact: -Math.round(discountPct * 1000),
-        details: { festivalId, festivalName: fest.name, discountPct, skus },
-        status: 'pending',
+    const items = skus.map((sku) => catalog.find((p) => p.sku === sku)).filter((p): p is Product => !!p)
+    if (!items.length) return { success: false, message: 'None of the campaign products are in your catalogue.' }
+    const changes = items.map((p) => ({ sku: p.sku, newPrice: toPaise(Math.round(p.price * (1 - discountPct / 100))), expectedPrice: toPaise(p.price) }))
+    const reason = `${fest.name} campaign · ${discountPct}% festive discount`
+    try {
+      await api('/api/products/prices', { body: { changes, reason, source: 'festival', actor: 'Festival Intelligence Agent', ref: festivalId.slice(0, 40) } })
+      store.invalidate('products', 'analytics', 'activity')
+      setFestivalEvents((prev) => prev.map((f) => (f.id === festivalId ? { ...f, status: 'Active' } : f)))
+      toast.success(`Campaign Activated: ${fest.name}`, { description: `${discountPct}% festive pricing applied to ${items.length} SKUs in your catalogue.` })
+      return { success: true, message: 'Campaign activated successfully.' }
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'needs_approval') {
+        const queueItem: ApprovalQueueItem = {
+          id: `APR-FEST-${Date.now()}`,
+          createdAt: new Date().toISOString(),
+          agentName: 'Festival Intelligence Agent',
+          actionType: 'discount',
+          title: `Festival Campaign: ${fest.name} (${discountPct}% discount)`,
+          description: `${e.message} Products: ${items.map((p) => p.sku).join(', ')}`,
+          financialImpact: -Math.round(items.reduce((sum, p) => sum + p.price * (discountPct / 100) * p.avgDailySales * 30, 0)),
+          details: { festivalId, festivalName: fest.name, discountPct, skus: items.map((p) => p.sku), changes, reason },
+          status: 'pending',
+        }
+        setApprovalQueue((prev) => [queueItem, ...prev])
+        addActivity({ agent: 'Festival Intelligence Agent', action: `Campaign queued for approval: ${fest.name}`, status: 'warning', detail: e.message })
+        toast.warning('Campaign discount queued', { description: e.message })
+        return { success: true, queued: true, message: 'Queued for seller authorization.' }
       }
-      setApprovalQueue((prev) => [queueItem, ...prev])
-      addActivity({
-        agent: 'Festival Intelligence Agent',
-        action: `Campaign queued for approval: ${fest.name}`,
-        status: 'warning',
-        detail: `${discountPct}% discount on ${skus.length} SKUs requires approval.`,
-      })
-      toast.warning('Campaign discount queued', { description: `${discountPct}% discount exceeds auto-mandate limit.` })
-      return { success: true, queued: true, message: 'Queued for seller authorization.' }
+      const msg = e instanceof ApiError ? e.message : 'The campaign wasn’t applied. Try again.'
+      toast.error('Campaign not applied', { description: msg })
+      return { success: false, message: msg }
     }
-
-    // Apply festival discount directly within mandate
-    skus.forEach((sku) => {
-      const p = [...PRODUCTS, ...extraProducts].find((x) => x.sku === sku)
-      if (p) {
-        const discountedPrice = Math.round(p.price * (1 - discountPct / 100))
-        p.price = discountedPrice
-      }
-    })
-
-    setFestivalEvents((prev) =>
-      prev.map((f) => (f.id === festivalId ? { ...f, status: 'Active' } : f))
-    )
-
-    addActivity({
-      agent: 'Festival Intelligence Agent',
-      action: `Campaign Activated: ${fest.name}`,
-      status: 'success',
-      detail: `Applied ${discountPct}% promotional discount to ${skus.length} SKUs for festival demand wave.`,
-    })
-
-    toast.success(`Campaign Activated: ${fest.name}`, {
-      description: `${discountPct}% festive pricing applied to ${skus.length} SKUs.`,
-    })
-
-    return { success: true, message: 'Campaign activated successfully.' }
-  }, [festivalEvents, pricingRules, extraProducts, addActivity])
+  }, [festivalEvents, catalog, store, addActivity])
 
   // Feature 6: Supplier Intelligence
   const getSupplierPerformance = useCallback((supplierId: string) => {
@@ -406,7 +354,7 @@ export function useCommerce({ auth, extraProducts, addActivity, pauseAgents }: C
   }, [supplierRelationships])
 
   const getAiSupplierRecommendation = useCallback((sku: string, urgency: 'low' | 'normal' | 'urgent', targetQty = 300) => {
-    const p = [...PRODUCTS, ...extraProducts].find((x) => x.sku === sku)
+    const p = catalog.find((x) => x.sku === sku)
     const pName = p ? p.name : sku
     const candidateQuotes = [
       { supplierId: 'SUP-A', name: 'Supplier A — NovaSource Traders', quote: 198, days: 5, onTime: 85, score: 86.4 },
@@ -434,7 +382,7 @@ export function useCommerce({ auth, extraProducts, addActivity, pauseAgents }: C
     }))
 
     return { recommendedSupplierId: bestId, reason, comparison }
-  }, [extraProducts])
+  }, [catalog])
 
   // Feature 7 & 10: AI Autonomy & Approval Queue
   const setAutonomyLevel = useCallback((lvl: AutonomyLevel) => {
@@ -455,9 +403,30 @@ export function useCommerce({ auth, extraProducts, addActivity, pauseAgents }: C
     })
   }, [addActivity])
 
-  const approveQueuedAction = useCallback((id: string, modParams?: unknown) => {
+  const approveQueuedAction = useCallback(async (id: string, modParams?: unknown) => {
     const item = approvalQueue.find((x) => x.id === id)
-    if (!item) return
+    if (!item || item.status !== 'pending') return
+
+    if (item.actionType === 'repricing' || item.actionType === 'discount') {
+      // The seller's approval applies the change on the server; nothing changes locally unless it succeeds.
+      try {
+        const d = item.details as Record<string, unknown>
+        if (item.actionType === 'repricing') {
+          await api(`/api/products/${encodeURIComponent(String(d.sku))}/price`, {
+            body: { newPrice: toPaise(Number(d.newPrice)), reason: String(d.reason ?? item.description).slice(0, 300), source: 'approval', approved: true, expectedPrice: toPaise(Number(d.oldPrice)) },
+          })
+        } else {
+          await api('/api/products/prices', {
+            body: { changes: d.changes, reason: String(d.reason ?? item.title).slice(0, 300), source: 'approval', approved: true, ref: String(d.festivalId ?? '').slice(0, 40) || undefined },
+          })
+          setFestivalEvents((prev) => prev.map((f) => (f.id === d.festivalId ? { ...f, status: 'Active' } : f)))
+        }
+        store.invalidate('products', 'analytics', 'activity')
+      } catch (e) {
+        toast.error('Approval couldn’t be applied', { description: e instanceof ApiError ? e.message : undefined })
+        return
+      }
+    }
 
     setApprovalQueue((prev) =>
       prev.map((q) => (q.id === id ? { ...q, status: 'approved', reviewedAt: new Date().toISOString(), reviewedBy: auth.sellerName || 'Seller', modifiedParams: modParams } : q))
@@ -472,23 +441,12 @@ export function useCommerce({ auth, extraProducts, addActivity, pauseAgents }: C
         status: 'success',
         detail: `Signed execution authorized by ${auth.sellerName}.`,
       })
-    } else if (item.actionType === 'repricing') {
-      const { sku, newPrice } = item.details
-      if (typeof sku === 'string' && typeof newPrice === 'number') {
-        const p = [...PRODUCTS, ...extraProducts].find((x) => x.sku === sku)
-        if (p) p.price = newPrice
-      }
-      toast.success('Repricing approved', { description: item.title })
-      addActivity({
-        agent: 'Seller Authorization',
-        action: `Approved repricing: ${item.title}`,
-        status: 'success',
-        detail: `New price live across connected marketplaces.`,
-      })
+    } else if (item.actionType === 'repricing' || item.actionType === 'discount') {
+      toast.success(item.actionType === 'repricing' ? 'Repricing approved' : 'Campaign approved', { description: `${item.title} · saved to your catalogue.` })
     } else {
       toast.success('Action approved', { description: item.title })
     }
-  }, [approvalQueue, auth, extraProducts, addActivity])
+  }, [approvalQueue, auth, store, addActivity])
 
   const rejectQueuedAction = useCallback((id: string, reason = 'Seller declined proposal') => {
     setApprovalQueue((prev) =>

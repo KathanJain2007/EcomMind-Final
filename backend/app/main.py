@@ -11,7 +11,7 @@ from . import db as dbmod
 from . import errors
 from .config import settings
 from .migrations import migrate
-from .routers import activity, analytics, auth, business, escrow, places, rfq, store
+from .routers import activity, analytics, auth, business, escrow, places, pricing, rfq, store
 from .seed import seed_network
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -35,7 +35,7 @@ def create_app() -> FastAPI:
     errors.install(app)
     app.add_middleware(CORSMiddleware, allow_origins=[settings.frontend_origin], allow_credentials=True,
                        allow_methods=["*"], allow_headers=["*"])
-    for r in (auth.router, business.router, places.router, store.router, rfq.router, escrow.router, analytics.router, activity.router):
+    for r in (auth.router, business.router, places.router, store.router, rfq.router, escrow.router, pricing.router, analytics.router, activity.router):
         app.include_router(r)
 
     @app.get("/api/health")

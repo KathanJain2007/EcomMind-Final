@@ -6,7 +6,7 @@ import {
 import { toast } from 'sonner'
 import { useApp } from '@/store/AppContext'
 import {
-  PRODUCTS, SUPPLIERS,
+  SUPPLIERS,
   salesInRange, stockCoverage, stockStatus,
 } from '@/data/demo'
 import { cx, formatINR, formatNum, formatDate, formatDateTime } from '@/lib/format'
@@ -82,7 +82,7 @@ const RANGES = [
 
 export function ReportsManager() {
   const {
-    auth, activity, extraProducts,
+    auth, activity, catalog,
     priceHistory, supplierPurchases,
     reportHistory, saveGeneratedReport,
   } = useApp()
@@ -94,7 +94,7 @@ export function ReportsManager() {
   const [marketplaceFilter, setMarketplaceFilter] = useState('All')
   const [search, setSearch] = useState('')
 
-  const allProducts = useMemo(() => [...PRODUCTS, ...extraProducts], [extraProducts])
+  const allProducts = catalog
 
   // Build report dataset dynamically from actual state
   const reportData = useMemo(() => {

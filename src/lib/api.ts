@@ -166,6 +166,36 @@ export interface ApiMandate {
   autoRepricing: boolean
   approvalAboveLimit: boolean
   agentsPaused: boolean
+  maxDiscountPct: number
+  pricingMode: 'manual' | 'recommendation' | 'autonomous'
+}
+
+export interface ApiPriceChange {
+  id: string
+  sku: string
+  productName: string
+  oldPrice: number
+  newPrice: number
+  pctChange: number
+  marginPct: number
+  reason: string
+  source: 'seller' | 'agent' | 'festival' | 'approval'
+  actor: string
+  sellerOverride: boolean
+  safeguards: { minMarginMet: boolean; maxChangeMet: boolean; maxDiscountMet: boolean; modeAllows: boolean; marginPct: number; pctChange: number }
+  ref: string | null
+  createdAt: string
+}
+
+/** details of a 409 needs_approval price change */
+export interface ApiPriceApprovalNeeded {
+  sku: string
+  productName: string
+  oldPrice: number
+  newPrice: number
+  violations: string[]
+  safeguards: ApiPriceChange['safeguards']
+  monthlyImpact: number
 }
 
 export interface ApiServiceAgent {

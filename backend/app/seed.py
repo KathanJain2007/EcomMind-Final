@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from .models import (
     RFQ, ActivityEvent, AgentCall, Business, CompetitorPrice, Escrow, LogisticsQuote, Mandate, Negotiation,
-    NegotiationMessage, Product, ReturnStat, SalesDaily, ServiceAgent, StockMovement, Supplier, SupplierQuote, User,
+    NegotiationMessage, PriceChange, Product, ReturnStat, SalesDaily, ServiceAgent, StockMovement, Supplier, SupplierQuote, User,
     WalletTxn,
 )
 from .security import new_id, sign
@@ -146,7 +146,7 @@ def load_demo_business(db: Session, business: Business, user: User) -> None:
     # and escrow balances only make sense next to the ledger that funded them.
     neg_ids = select(Negotiation.id).where(Negotiation.business_id == bid)
     db.execute(delete(NegotiationMessage).where(NegotiationMessage.negotiation_id.in_(neg_ids)))
-    for model in (Escrow, StockMovement, Negotiation, RFQ, SalesDaily, ReturnStat, CompetitorPrice, WalletTxn,
+    for model in (Escrow, StockMovement, PriceChange, Negotiation, RFQ, SalesDaily, ReturnStat, CompetitorPrice, WalletTxn,
                   ActivityEvent, AgentCall, Product):
         db.execute(delete(model).where(model.business_id == bid))
 

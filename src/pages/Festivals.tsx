@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { CheckCircle2, Play, ShieldAlert, Sparkles } from 'lucide-react'
 import { useApp } from '@/store/AppContext'
-import { PRODUCTS } from '@/data/demo'
 import { cx, formatINR, formatNum, formatDate } from '@/lib/format'
 import { EmptyState, PageHeader } from '@/components/common'
 import { Button } from '@/components/ui/button'
@@ -14,11 +13,11 @@ import type { FestivalEvent } from '@/data/models'
 
 export default function Festivals() {
   const {
-    demoLoaded, loadDemoBusiness, festivalEvents, extraProducts,
+    demoLoaded, loadDemoBusiness, festivalEvents, catalog,
     pricingRules, applyFestivalCampaign,
   } = useApp()
 
-  const allProducts = useMemo(() => [...PRODUCTS, ...extraProducts], [extraProducts])
+  const allProducts = catalog
 
   const [selectedFestival, setSelectedFestival] = useState<FestivalEvent | null>(null)
   const [discountOverride, setDiscountOverride] = useState('')
@@ -45,11 +44,13 @@ export default function Festivals() {
   const upcomingCount = festivalsWithCountdown.filter((f) => f.daysRemaining > 0).length
   const activeCount = festivalsWithCountdown.filter((f) => f.status === 'Active').length
 
-  const handleApplyCampaign = () => {
-    if (!selectedFestival) return
+  const [applying, setApplying] = useState(false)
+  const handleApplyCampaign = async () => {
+    if (!selectedFestival || applying) return
     const discount = Number(discountOverride) || selectedFestival.suggestedDiscountPct
-    const res = applyFestivalCampaign(selectedFestival.id, discount, selectedFestival.suggestedSkus)
-
+    setApplying(true)
+    const res = await applyFestivalCampaign(selectedFestival.id, discount, selectedFestival.suggestedSkus)
+    setApplying(false)
     if (res.success) {
       setSelectedFestival(null)
       setDiscountOverride('')

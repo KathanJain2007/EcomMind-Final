@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
@@ -97,7 +98,8 @@ def mandate_out(m: Mandate) -> dict:
             "walletDailyLimit": m.wallet_daily_limit, "maxPriceChangePct": m.max_price_change_pct,
             "minGrossMarginPct": m.min_gross_margin_pct, "autoPauseReturnPct": m.auto_pause_return_pct,
             "autoPurchasing": m.auto_purchasing, "autoNegotiation": m.auto_negotiation, "autoRepricing": m.auto_repricing,
-            "approvalAboveLimit": m.approval_above_limit, "agentsPaused": m.agents_paused}
+            "approvalAboveLimit": m.approval_above_limit, "agentsPaused": m.agents_paused,
+            "maxDiscountPct": m.max_discount_pct, "pricingMode": m.pricing_mode}
 
 
 class MandateIn(BaseModel):
@@ -113,6 +115,63 @@ class MandateIn(BaseModel):
     autoRepricing: bool
     approvalAboveLimit: bool
     agentsPaused: bool
+    maxDiscountPct: Optional[float] = Field(default=None, ge=0, le=90)
+    pricingMode: Optional[Literal["manual", "recommendation", "autonomous"]] = None
+
+
+class MandatePatch(BaseModel):
+    """Partial update: only the fields sent are changed."""
+    dailyBudget: Optional[int] = Field(default=None, ge=0, le=10**12)
+    maxOrderValue: Optional[int] = Field(default=None, ge=0, le=10**12)
+    maxPerCallCost: Optional[int] = Field(default=None, ge=0, le=10**9)
+    walletDailyLimit: Optional[int] = Field(default=None, ge=0, le=10**10)
+    maxPriceChangePct: Optional[float] = Field(default=None, ge=0, le=100)
+    minGrossMarginPct: Optional[float] = Field(default=None, ge=0, lt=100)
+    autoPauseReturnPct: Optional[float] = Field(default=None, ge=0, le=100)
+    autoPurchasing: Optional[bool] = None
+    autoNegotiation: Optional[bool] = None
+    autoRepricing: Optional[bool] = None
+    approvalAboveLimit: Optional[bool] = None
+    agentsPaused: Optional[bool] = None
+    maxDiscountPct: Optional[float] = Field(default=None, ge=0, le=90)
+    pricingMode: Optional[Literal["manual", "recommendation", "autonomous"]] = None
+
+
+_FIELDS = {"dailyBudget": "daily_budget", "maxOrderValue": "max_order_value", "maxPerCallCost": "max_per_call_cost",
+           "walletDailyLimit": "wallet_daily_limit", "maxPriceChangePct": "max_price_change_pct",
+           "minGrossMarginPct": "min_gross_margin_pct", "autoPauseReturnPct": "auto_pause_return_pct",
+           "autoPurchasing": "auto_purchasing", "autoNegotiation": "auto_negotiation", "autoRepricing": "auto_repricing",
+           "approvalAboveLimit": "approval_above_limit", "agentsPaused": "agents_paused",
+           "maxDiscountPct": "max_discount_pct", "pricingMode": "pricing_mode"}
+
+
+def _apply_mandate(m: Mandate, biz: Business, values: dict) -> list[str]:
+    changed = []
+    for k, v in values.items():
+        if v is None or k not in _FIELDS:
+            continue
+        if getattr(m, _FIELDS[k]) != v:
+            changed.append(k)
+        setattr(m, _FIELDS[k], v)
+    # auto_repricing and pricing_mode describe the same switch; keep them in step.
+    if "pricingMode" in changed:
+        m.auto_repricing = m.pricing_mode == "autonomous"
+    elif "autoRepricing" in changed:
+        m.pricing_mode = "autonomous" if m.auto_repricing else "recommendation"
+    m.updated_at = datetime.now(timezone.utc)
+    if values.get("agentsPaused"):
+        biz.agent_status = "paused"
+    return changed
+
+
+@router.patch("/mandate")
+def patch_mandate(body: MandatePatch, biz: Business = Depends(current_business), db: Session = Depends(get_db)):
+    m = get_mandate(db, biz.id)
+    changed = _apply_mandate(m, biz, body.model_dump())
+    if changed:
+        log_activity(db, biz.id, agent="Seller", action="Mandate updated", status="info", detail="Changed: " + ", ".join(changed))
+    db.commit()
+    return {"mandate": mandate_out(m)}
 
 
 @router.get("/mandate")
@@ -125,14 +184,7 @@ def get_mandate_ep(biz: Business = Depends(current_business), db: Session = Depe
 @router.put("/mandate")
 def put_mandate(body: MandateIn, biz: Business = Depends(current_business), db: Session = Depends(get_db)):
     m = get_mandate(db, biz.id)
-    m.daily_budget, m.max_order_value, m.max_per_call_cost = body.dailyBudget, body.maxOrderValue, body.maxPerCallCost
-    m.wallet_daily_limit, m.max_price_change_pct = body.walletDailyLimit, body.maxPriceChangePct
-    m.min_gross_margin_pct, m.auto_pause_return_pct = body.minGrossMarginPct, body.autoPauseReturnPct
-    m.auto_purchasing, m.auto_negotiation, m.auto_repricing = body.autoPurchasing, body.autoNegotiation, body.autoRepricing
-    m.approval_above_limit, m.agents_paused = body.approvalAboveLimit, body.agentsPaused
-    m.updated_at = datetime.now(timezone.utc)
-    if body.agentsPaused:
-        biz.agent_status = "paused"
+    _apply_mandate(m, biz, body.model_dump())
     log_activity(db, biz.id, agent="Seller", action="Mandate updated", status="info")
     db.commit()
     return {"mandate": mandate_out(m)}

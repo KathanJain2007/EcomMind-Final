@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Send, Sparkles } from 'lucide-react'
 import { useApp } from '@/store/AppContext'
-import { PRODUCTS, SUPPLIERS } from '@/data/demo'
+import { SUPPLIERS } from '@/data/demo'
 import { cx, formatDate, formatINR } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -108,7 +108,7 @@ export function SupplierScores() {
 }
 
 export function AiProcurementSelector({ onRequestRfq }: { onRequestRfq: (supplierId: string, sku: string) => void }) {
-  const { getAiSupplierRecommendation } = useApp()
+  const { getAiSupplierRecommendation, catalog } = useApp()
   const [aiSku, setAiSku] = useState('EAR-001')
   const [aiUrgency, setAiUrgency] = useState<'low' | 'normal' | 'urgent'>('urgent')
   const [aiTargetQty, setAiTargetQty] = useState(300)
@@ -134,7 +134,7 @@ export function AiProcurementSelector({ onRequestRfq }: { onRequestRfq: (supplie
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {PRODUCTS.map((p) => (
+                      {catalog.map((p) => (
                         <SelectItem key={p.sku} value={p.sku}>
                           {p.name} ({p.sku})
                         </SelectItem>

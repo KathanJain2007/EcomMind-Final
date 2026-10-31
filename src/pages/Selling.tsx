@@ -7,7 +7,6 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useApp } from '@/store/AppContext'
-import { PRODUCTS } from '@/data/demo'
 import { cx, formatINR, formatNum, formatDate, formatDateTime } from '@/lib/format'
 import { EmptyState, PageHeader } from '@/components/common'
 import { Button } from '@/components/ui/button'
@@ -24,13 +23,13 @@ import type { MarketplaceId, PricingRuleConfig } from '@/data/models'
 
 export default function Selling() {
   const {
-    demoLoaded, loadDemoBusiness, extraProducts,
+    demoLoaded, loadDemoBusiness, catalog,
     marketplaces, marketplaceListings, marketplaceOrders, inventoryMovements,
     createMarketplaceListing, toggleMarketplaceStatus,
     simulateMarketplaceOrder, pricingRules, updatePricingRules, priceHistory, executeReprice,
   } = useApp()
 
-  const allProducts = useMemo(() => [...PRODUCTS, ...extraProducts], [extraProducts])
+  const allProducts = catalog
 
   // Filters
   const [activeTab, setActiveTab] = useState('listings')
@@ -103,15 +102,23 @@ export default function Selling() {
     setDraft({ marketplace: 'amazon', sku: 'EAR-001', title: '', price: '', mrp: '', stock: '' })
   }
 
-  const handleTriggerReprice = () => {
-    if (!repriceModal) return
+  const [repricing, setRepricing] = useState(false)
+  // Slider positions while dragging; saved to the mandate when released.
+  const [ruleDraft, setRuleDraft] = useState<Partial<Pick<PricingRuleConfig, 'minGrossMarginPct' | 'maxDiscountPct' | 'maxPriceChangePct'>>>({})
+  const handleTriggerReprice = async () => {
+    if (!repriceModal || repricing) return
     const priceNum = Number(newPriceInput)
     if (!priceNum || priceNum <= 0) {
       toast.error('Enter a valid price')
       return
     }
-
-    const res = executeReprice(repriceModal.sku, priceNum, 'Seller Manual Reprice', repriceReason)
+    if (repriceReason.trim().length < 3) {
+      toast.error('Add a short reason for the price change')
+      return
+    }
+    setRepricing(true)
+    const res = await executeReprice(repriceModal.sku, priceNum, 'Seller Manual Reprice', repriceReason.trim())
+    setRepricing(false)
     if (res.success || res.queuedForApproval) {
       setRepriceModal(null)
       setNewPriceInput('')
@@ -343,7 +350,7 @@ export default function Selling() {
                               setRepriceModal({
                                 open: true,
                                 sku: l.sku,
-                                currentPrice: l.price,
+                                currentPrice: allProducts.find((p) => p.sku === l.sku)?.price ?? l.price,
                                 name: l.title,
                               })
                               setNewPriceInput(String(l.price))
@@ -520,31 +527,33 @@ export default function Selling() {
                     <div className="rounded-xl border border-border bg-secondary/30 p-3.5 space-y-2">
                       <div className="flex justify-between items-center text-xs">
                         <span className="font-medium text-foreground">Min Gross Margin Floor</span>
-                        <strong className="text-brand-soft font-mono">{pricingRules.minGrossMarginPct}%</strong>
+                        <strong className="text-brand-soft font-mono">{ruleDraft.minGrossMarginPct ?? pricingRules.minGrossMarginPct}%</strong>
                       </div>
                       <Slider
-                        value={[pricingRules.minGrossMarginPct]}
+                        value={[ruleDraft.minGrossMarginPct ?? pricingRules.minGrossMarginPct]}
                         min={5}
                         max={40}
                         step={1}
-                        onValueChange={([v]) => updatePricingRules({ minGrossMarginPct: v })}
+                        onValueChange={([v]) => setRuleDraft((d) => ({ ...d, minGrossMarginPct: v }))}
+                        onValueCommit={([v]) => { void updatePricingRules({ minGrossMarginPct: v }).then(() => setRuleDraft((d) => ({ ...d, minGrossMarginPct: undefined }))) }}
                       />
                       <p className="text-[10px] text-muted-foreground">
-                        Includes channel commissions (12%) & logistics expenses before testing viability.
+                        Gross margin on cost price, (price − cost) ÷ price. Saved to your mandate.
                       </p>
                     </div>
 
                     <div className="rounded-xl border border-border bg-secondary/30 p-3.5 space-y-2">
                       <div className="flex justify-between items-center text-xs">
                         <span className="font-medium text-foreground">Max Allowed Discount</span>
-                        <strong className="text-brand-soft font-mono">{pricingRules.maxDiscountPct}%</strong>
+                        <strong className="text-brand-soft font-mono">{ruleDraft.maxDiscountPct ?? pricingRules.maxDiscountPct}%</strong>
                       </div>
                       <Slider
-                        value={[pricingRules.maxDiscountPct]}
+                        value={[ruleDraft.maxDiscountPct ?? pricingRules.maxDiscountPct]}
                         min={5}
                         max={50}
                         step={1}
-                        onValueChange={([v]) => updatePricingRules({ maxDiscountPct: v })}
+                        onValueChange={([v]) => setRuleDraft((d) => ({ ...d, maxDiscountPct: v }))}
+                        onValueCommit={([v]) => { void updatePricingRules({ maxDiscountPct: v }).then(() => setRuleDraft((d) => ({ ...d, maxDiscountPct: undefined }))) }}
                       />
                       <p className="text-[10px] text-muted-foreground">
                         Hard cap on maximum single promotional markdown.
@@ -554,14 +563,15 @@ export default function Selling() {
                     <div className="rounded-xl border border-border bg-secondary/30 p-3.5 space-y-2">
                       <div className="flex justify-between items-center text-xs">
                         <span className="font-medium text-foreground">Max Price Movement Band</span>
-                        <strong className="text-brand-soft font-mono">±{pricingRules.maxPriceChangePct}%</strong>
+                        <strong className="text-brand-soft font-mono">±{ruleDraft.maxPriceChangePct ?? pricingRules.maxPriceChangePct}%</strong>
                       </div>
                       <Slider
-                        value={[pricingRules.maxPriceChangePct]}
+                        value={[ruleDraft.maxPriceChangePct ?? pricingRules.maxPriceChangePct]}
                         min={2}
                         max={30}
                         step={1}
-                        onValueChange={([v]) => updatePricingRules({ maxPriceChangePct: v })}
+                        onValueChange={([v]) => setRuleDraft((d) => ({ ...d, maxPriceChangePct: v }))}
+                        onValueCommit={([v]) => { void updatePricingRules({ maxPriceChangePct: v }).then(() => setRuleDraft((d) => ({ ...d, maxPriceChangePct: undefined }))) }}
                       />
                       <p className="text-[10px] text-muted-foreground">
                         Any larger swing automatically routes to the human Approval Queue.
@@ -605,7 +615,9 @@ export default function Selling() {
                       </div>
 
                       <div className="flex items-center gap-2 pt-1 text-[10px] text-muted-foreground">
-                        <span className="text-success font-medium">✓ Safeguards Checked</span>
+                        {item.sellerOverride
+                          ? <span className="text-warning font-medium">Approved by seller outside mandate{item.marginPct !== undefined ? ` · margin ${item.marginPct}%` : ''}</span>
+                          : <span className="text-success font-medium">✓ Within mandate{item.marginPct !== undefined ? ` · margin ${item.marginPct}%` : ''}</span>}
                         <span>·</span>
                         <span>Agent: {item.agentResponsible}</span>
                         <span>·</span>
@@ -845,7 +857,8 @@ export default function Selling() {
                   <p className="font-semibold text-foreground">Backend Guardrail Check:</p>
                   <p>• Minimum Gross Margin Floor: {pricingRules.minGrossMarginPct}%</p>
                   <p>• Max Single Price Movement: ±{pricingRules.maxPriceChangePct}%</p>
-                  <p className="text-[10px]">Violating limits automatically routes to the Approval Queue.</p>
+                  <p>• Max Discount: {pricingRules.maxDiscountPct}%</p>
+                  <p className="text-[10px]">Checked on the server against your mandate. Changes outside it go to the Approval Queue; nothing changes until you approve.</p>
                 </div>
               </div>
 
@@ -853,8 +866,8 @@ export default function Selling() {
                 <Button variant="outline" size="sm" onClick={() => setRepriceModal(null)}>
                   Cancel
                 </Button>
-                <Button size="sm" onClick={handleTriggerReprice} className="btn-glow border-0 text-white">
-                  Validate & Execute
+                <Button size="sm" onClick={handleTriggerReprice} disabled={repricing} className="btn-glow border-0 text-white">
+                  {repricing ? 'Validating…' : 'Validate & Execute'}
                 </Button>
               </DialogFooter>
             </>

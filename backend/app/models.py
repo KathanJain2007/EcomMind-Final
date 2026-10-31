@@ -250,6 +250,10 @@ class Mandate(Base):
     auto_repricing: Mapped[bool] = mapped_column(Boolean, default=False)
     approval_above_limit: Mapped[bool] = mapped_column(Boolean, default=True)
     agents_paused: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Repricing policy. pricing_mode: manual | recommendation | autonomous
+    # (auto_repricing is kept equal to pricing_mode == "autonomous").
+    max_discount_pct: Mapped[float] = mapped_column(Float, default=25)
+    pricing_mode: Mapped[str] = mapped_column(String(16), default="recommendation")
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
@@ -306,6 +310,28 @@ class Escrow(Base):
     released_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
     refunded_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
     cancelled_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+
+
+class PriceChange(Base):
+    """Every applied change to a product's selling price."""
+    __tablename__ = "price_changes"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    sku: Mapped[str] = mapped_column(String(40), index=True)
+    product_name: Mapped[str] = mapped_column(String(160))
+    old_price: Mapped[int] = mapped_column(Integer)  # paise
+    new_price: Mapped[int] = mapped_column(Integer)  # paise
+    pct_change: Mapped[float] = mapped_column(Float)
+    margin_pct: Mapped[float] = mapped_column(Float)  # gross margin at the new price
+    reason: Mapped[str] = mapped_column(String(300))
+    source: Mapped[str] = mapped_column(String(16))  # seller | agent | festival | approval
+    actor: Mapped[str] = mapped_column(String(80))
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    seller_override: Mapped[bool] = mapped_column(Boolean, default=False)  # applied outside the mandate with explicit approval
+    safeguards: Mapped[dict] = mapped_column(JSON)
+    ref: Mapped[Optional[str]] = mapped_column(String(40))  # campaign / approval that caused it
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
 
 
 class StockMovement(Base):

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import { PRODUCTS, SEED_NOTIFICATIONS, type ActivityEvent, type AppNotification, type Product } from '@/data/demo'
+import { SEED_NOTIFICATIONS, type ActivityEvent, type AppNotification, type Product } from '@/data/demo'
 import { api, ApiError, type ApiBusiness, type ApiEvent, type ApiProduct, type MeResponse } from '@/lib/api'
 import { useApiQuery, useDataStore } from '@/store/DataStore'
 import { useCommerce, type CommerceState } from '@/store/commerce'
@@ -38,8 +38,8 @@ interface AppState {
   importedDatasets: string[]
   /** Recent backend activity events in the legacy shape (rupees) used by reports. */
   activity: ActivityEvent[]
-  /** Backend catalogue products that aren't part of the bundled demo list. */
-  extraProducts: Product[]
+  /** The seller's catalogue from the backend (prices in rupees), the single source for prices and stock. */
+  catalog: Product[]
 }
 
 interface AppActions {
@@ -86,9 +86,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Shared reads for the browser-side commerce features.
   const productsQ = useApiQuery<{ products: ApiProduct[] }>(signedIn && me?.business ? '/api/products' : null, ['products'])
   const eventsQ = useApiQuery<{ items: ApiEvent[] }>(signedIn && me?.business ? '/api/activity/events?pageSize=200' : null, ['activity'])
-  const extraProducts = useMemo<Product[]>(() => {
-    const demoSkus = new Set(PRODUCTS.map((p) => p.sku))
-    return (productsQ.data?.products ?? []).filter((p) => !demoSkus.has(p.sku)).map((p) => ({
+  const catalog = useMemo<Product[]>(() => {
+    return (productsQ.data?.products ?? []).map((p) => ({
       sku: p.sku, name: p.name, category: p.category, price: p.price / 100, cost: p.cost / 100, stock: p.stock,
       avgDailySales: p.avgDailySales, returnRate: p.returnRate, icon: p.icon, paused: p.paused,
     }))
@@ -122,7 +121,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const commerce = useCommerce({
     auth: { sellerName: me?.user.name ?? '', storeName: me?.business?.name ?? '' },
-    extraProducts, addActivity, pauseAgents,
+    catalog, addActivity, pauseAgents, enabled: signedIn && !!me?.business,
   })
   const { seedCommerceDemo, resetCommerce } = commerce
 
@@ -226,14 +225,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const business = me?.business ?? null
   const value = useMemo(() => ({
     ...commerce,
-    activity, extraProducts, addActivity,
+    activity, catalog, addActivity,
     auth: authFrom(me, loading), me, business,
     demoLoaded: !!business?.demoLoaded,
     agentStatus: (business?.agentStatus ?? 'active') as AgentStatus,
     notifications, importedDatasets,
     refreshMe, login, demoLogin, register, logout, setMe, loadDemoBusiness, setAgentStatus,
     markNotificationsRead, setAnalysisRun, markDatasetImported, resetImported,
-  }), [commerce, activity, extraProducts, addActivity, me, loading, business, notifications, importedDatasets, refreshMe, login, demoLogin, register,
+  }), [commerce, activity, catalog, addActivity, me, loading, business, notifications, importedDatasets, refreshMe, login, demoLogin, register,
     logout, setMe, loadDemoBusiness, setAgentStatus, markNotificationsRead, setAnalysisRun, markDatasetImported, resetImported])
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

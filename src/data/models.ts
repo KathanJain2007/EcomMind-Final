@@ -405,6 +405,10 @@ export interface PriceChangeLog {
     maxChangeMet: boolean
     commissionsIncluded: boolean
   }
+  /** Backend fields: gross margin at the new price, whether the seller approved it outside the mandate, and who asked. */
+  marginPct?: number
+  sellerOverride?: boolean
+  source?: 'seller' | 'agent' | 'festival' | 'approval'
 }
 
 export const DEFAULT_PRICING_RULES: PricingRuleConfig = {
