@@ -5,7 +5,7 @@ import { useApp } from '@/store/AppContext'
 import { useApiQuery, useDataStore } from '@/store/DataStore'
 import { api, ApiError, type ApiMandate } from '@/lib/api'
 import { cx, formatPaise } from '@/lib/format'
-import { gstinLiveError, normalizeGstin, validateGstin } from '@/lib/validation/gstin'
+import { getExpectedCheckDigit, gstinLiveError, normalizeGstin, validateGstin } from '@/lib/validation/gstin'
 import { BudgetProgress, PageHeader, PanelError, StatusBadge } from '@/components/common'
 import { LocationAutocomplete } from '@/components/LocationAutocomplete'
 import type { PlaceValue } from '@/lib/place'
@@ -291,6 +291,28 @@ function BusinessProfileCard() {
                     <Input value={gstin} autoFocus maxLength={20} spellCheck={false} placeholder="Enter your 15-character GSTIN" className="max-w-xs font-mono uppercase tracking-wide"
                       aria-label="Business GSTIN" aria-invalid={!!gstinError}
                       onChange={(e) => { const v = normalizeGstin(e.target.value); setGstin(v); setGstinError(gstinLiveError(v)) }} />
+                    {(() => {
+                      const expectedCheck = getExpectedCheckDigit(gstin)
+                      if (expectedCheck && gstin.length === 15 && gstin[14] !== expectedCheck) {
+                        return (
+                          <div className="flex items-center gap-2 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const fixed = gstin.slice(0, 14) + expectedCheck
+                                setGstin(fixed)
+                                setGstinError(undefined)
+                              }}
+                              className="inline-flex items-center gap-1 rounded bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 text-xs font-medium text-indigo-400 hover:bg-indigo-500/25 transition-colors"
+                            >
+                              Fix check digit to &quot;{expectedCheck}&quot;
+                            </button>
+                            <span className="text-[11px] text-muted-foreground">(Luhn mod-36)</span>
+                          </div>
+                        )
+                      }
+                      return null
+                    })()}
                     <p className={cx('text-xs', gstinError ? 'text-danger' : 'text-muted-foreground')}>{gstinError ?? 'The GST identification number registered for your business.'}</p>
                   </div>
                 ) : (

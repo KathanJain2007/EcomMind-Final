@@ -44,6 +44,7 @@ class GstinCheck:
     gstin: str | None = None
     code: str | None = None
     message: str | None = None
+    expected_char: str | None = None
 
 
 def normalize(raw: object) -> str:
@@ -59,6 +60,20 @@ def checksum_char(first14: str) -> str:
         product = value * (1 if i % 2 == 0 else 2)
         total += product // 36 + product % 36
     return CHARSET[(36 - total % 36) % 36]
+
+
+def expected_check_digit(raw: object) -> str | None:
+    value = normalize(raw)
+    if len(value) < 14:
+        return None
+    if value[:2] not in STATE_CODES:
+        return None
+    pan = value[2:12]
+    if not _PAN_RE.match(pan) or pan[3] not in PAN_HOLDER_TYPES:
+        return None
+    if value[12] == "0" or value[13] != "Z":
+        return None
+    return checksum_char(value[:14])
 
 
 def _fail(code: str) -> GstinCheck:
@@ -84,8 +99,14 @@ def validate_gstin(raw: object) -> GstinCheck:
         return _fail("gstin_entity_code")
     if value[13] != "Z":
         return _fail("gstin_default_char")
-    if checksum_char(value[:14]) != value[14]:
-        return _fail("gstin_checksum")
+    expected = checksum_char(value[:14])
+    if expected != value[14]:
+        return GstinCheck(
+            ok=False,
+            code="gstin_checksum",
+            message=MESSAGES["gstin_checksum"],
+            expected_char=expected,
+        )
     return GstinCheck(ok=True, gstin=value)
 
 

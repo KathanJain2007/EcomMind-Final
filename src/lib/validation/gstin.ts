@@ -24,8 +24,24 @@ export const GSTIN_MESSAGES = {
   gstin_checksum: 'The last character doesn’t match the GSTIN check digit. Please re-check the number.',
 } as const
 
+export interface SampleGstin {
+  gstin: string
+  label: string
+  state: string
+}
+
+export const SAMPLE_GSTINS: SampleGstin[] = [
+  { gstin: '27AAPFU0939F1ZV', label: 'MH', state: 'Maharashtra' },
+  { gstin: '29AAGCB7383J1Z4', label: 'KA', state: 'Karnataka' },
+  { gstin: '07AAAAA0000A1Z4', label: 'DL', state: 'Delhi' },
+  { gstin: '24AAACG8466C1ZS', label: 'GJ', state: 'Gujarat' },
+  { gstin: '33AAACH7409R1Z8', label: 'TN', state: 'Tamil Nadu' },
+]
+
 export type GstinErrorCode = keyof typeof GSTIN_MESSAGES
-export type GstinCheck = { ok: true; gstin: string } | { ok: false; code: GstinErrorCode; message: string }
+export type GstinCheck =
+  | { ok: true; gstin: string }
+  | { ok: false; code: GstinErrorCode; message: string; expectedChar?: string }
 
 export function normalizeGstin(raw: string): string {
   return raw.replace(/\s+/g, '').toUpperCase()
@@ -40,7 +56,23 @@ export function gstinChecksum(first14: string): string {
   return CHARSET[(36 - (total % 36)) % 36]
 }
 
-const fail = (code: GstinErrorCode): GstinCheck => ({ ok: false, code, message: GSTIN_MESSAGES[code] })
+export function getExpectedCheckDigit(raw: string): string | undefined {
+  const v = normalizeGstin(raw)
+  if (v.length < 14) return undefined
+  if (!STATE_CODES.has(v.slice(0, 2))) return undefined
+  const pan = v.slice(2, 12)
+  if (!PAN_RE.test(pan)) return undefined
+  if (!PAN_HOLDER_TYPES.has(pan[3])) return undefined
+  if (v[12] === '0' || v[13] !== 'Z') return undefined
+  return gstinChecksum(v.slice(0, 14))
+}
+
+const fail = (code: GstinErrorCode, extra?: { expectedChar?: string }): GstinCheck => ({
+  ok: false,
+  code,
+  message: GSTIN_MESSAGES[code],
+  ...extra,
+})
 
 export function validateGstin(raw: string): GstinCheck {
   const v = normalizeGstin(raw)
@@ -53,7 +85,15 @@ export function validateGstin(raw: string): GstinCheck {
   if (!PAN_HOLDER_TYPES.has(pan[3])) return fail('gstin_pan_type')
   if (v[12] === '0') return fail('gstin_entity_code')
   if (v[13] !== 'Z') return fail('gstin_default_char')
-  if (gstinChecksum(v.slice(0, 14)) !== v[14]) return fail('gstin_checksum')
+  const expected = gstinChecksum(v.slice(0, 14))
+  if (expected !== v[14]) {
+    return {
+      ok: false,
+      code: 'gstin_checksum',
+      message: `The 15th character doesn't match the GSTIN check digit (expected '${expected}', got '${v[14]}').`,
+      expectedChar: expected,
+    }
+  }
   return { ok: true, gstin: v }
 }
 

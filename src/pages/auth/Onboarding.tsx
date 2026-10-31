@@ -12,7 +12,7 @@ import { LocationAutocomplete } from '@/components/LocationAutocomplete'
 import { locationProblem, type PlaceValue } from '@/lib/place'
 import { api, ApiError, type MeResponse } from '@/lib/api'
 import { summarize, uploadImport } from '@/lib/imports'
-import { gstinLiveError, normalizeGstin, validateGstin } from '@/lib/validation/gstin'
+import { getExpectedCheckDigit, gstinLiveError, normalizeGstin, SAMPLE_GSTINS, validateGstin } from '@/lib/validation/gstin'
 import { INDIAN_STATE_CODES } from '@/data/models'
 import { cx } from '@/lib/format'
 
@@ -137,10 +137,13 @@ export default function Onboarding() {
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="ob-gstin">Business GSTIN</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="ob-gstin">Business GSTIN</Label>
+              <span className="text-[11px] text-muted-foreground">15 chars (State + PAN + Entity + Z + Checksum)</span>
+            </div>
             <Input
               id="ob-gstin"
-              placeholder="Enter your 15-character GSTIN"
+              placeholder="e.g. 27AAPFU0939F1ZV"
               value={form.gstin}
               maxLength={20}
               autoComplete="off"
@@ -155,11 +158,74 @@ export default function Onboarding() {
               aria-invalid={!!errors.gstin}
               aria-describedby="ob-gstin-help"
             />
+            {(() => {
+              const expectedCheck = getExpectedCheckDigit(form.gstin)
+              if (expectedCheck && form.gstin.length === 15 && form.gstin[14] !== expectedCheck) {
+                return (
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const fixed = form.gstin.slice(0, 14) + expectedCheck
+                        setForm({ ...form, gstin: fixed })
+                        setErrors((x) => ({ ...x, gstin: undefined }))
+                      }}
+                      className="inline-flex items-center gap-1 rounded bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 text-xs font-medium text-indigo-400 hover:bg-indigo-500/25 transition-colors"
+                    >
+                      Fix check digit to &quot;{expectedCheck}&quot;
+                    </button>
+                    <span className="text-[11px] text-muted-foreground">Required by Luhn mod-36 checksum</span>
+                  </div>
+                )
+              }
+              if (expectedCheck && form.gstin.length === 14) {
+                return (
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const fixed = form.gstin + expectedCheck
+                        setForm({ ...form, gstin: fixed })
+                        setErrors((x) => ({ ...x, gstin: undefined }))
+                      }}
+                      className="inline-flex items-center gap-1 rounded bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 text-xs font-medium text-indigo-400 hover:bg-indigo-500/25 transition-colors"
+                    >
+                      Append check digit &quot;{expectedCheck}&quot;
+                    </button>
+                  </div>
+                )
+              }
+              return null
+            })()}
             <p id="ob-gstin-help" className={cx('text-xs', errors.gstin ? 'text-danger' : gstinOk ? 'text-success' : 'text-muted-foreground')}>
               {errors.gstin ?? (gstinOk
                 ? `Format looks valid${INDIAN_STATE_CODES[form.gstin.slice(0, 2)] ? ` · registered state ${INDIAN_STATE_CODES[form.gstin.slice(0, 2)]}` : ''}. EcomMind checks the format only, not registration with the GST portal.`
                 : 'The GST identification number registered for your business, e.g. 27AAPFU0939F1ZV.')}
             </p>
+            <div className="pt-1.5 space-y-1">
+              <span className="text-[11px] text-muted-foreground">Sample GSTINs for other states (click to test):</span>
+              <div className="flex flex-wrap gap-1.5">
+                {SAMPLE_GSTINS.map((s) => (
+                  <button
+                    key={s.gstin}
+                    type="button"
+                    onClick={() => {
+                      setForm((f) => ({ ...f, gstin: s.gstin }))
+                      setErrors((x) => ({ ...x, gstin: undefined }))
+                    }}
+                    className={cx(
+                      'inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-mono transition-colors border',
+                      form.gstin === s.gstin
+                        ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 font-medium'
+                        : 'border-border/60 bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground'
+                    )}
+                  >
+                    <span className="font-semibold text-[10px] text-primary">{s.label}</span>
+                    <span>{s.gstin}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_9rem]">
             <div className="space-y-1.5">

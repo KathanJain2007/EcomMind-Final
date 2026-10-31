@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { validateGmail, EMAIL_MESSAGES } from './email'
-import { gstinChecksum, gstinLiveError, validateGstin } from './gstin'
+import { getExpectedCheckDigit, gstinChecksum, gstinLiveError, SAMPLE_GSTINS, validateGstin } from './gstin'
 
 // These cases mirror backend/tests/test_email_validation.py and
 // test_gstin_business.py so browser and server rules can't drift apart.
@@ -54,5 +54,17 @@ describe('validateGstin', () => {
     expect(gstinLiveError('27AAP')).toBeUndefined()
     expect(gstinLiveError('99')).toBeUndefined()
     expect(gstinLiveError('45')).toMatch(/state code/)
+  })
+  it('calculates expected check digit for valid 14-character prefix', () => {
+    expect(getExpectedCheckDigit('27AAPFU0939F1Z')).toBe('V')
+    expect(getExpectedCheckDigit('27AAPFU0939F1ZA')).toBe('V')
+    expect(getExpectedCheckDigit('29AAGCB7383J1Z')).toBe('4')
+    expect(getExpectedCheckDigit('07AAAAA0000A1Z')).toBe('4')
+    expect(getExpectedCheckDigit('123')).toBeUndefined()
+  })
+  it('all SAMPLE_GSTINS pass validation', () => {
+    for (const sample of SAMPLE_GSTINS) {
+      expect(validateGstin(sample.gstin).ok).toBe(true)
+    }
   })
 })
