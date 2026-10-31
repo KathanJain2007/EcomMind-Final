@@ -234,8 +234,6 @@ def _products(ctx: Ctx, rows: list[dict], fail: Callable[[int, str], None]) -> N
             name = _text(row, "name", 160)
             price = _paise(row, "price", gt=0)
             cost = _paise(row, "cost", minimum=0)
-            if cost >= price:
-                raise RowError("cost must be below the selling price")
             stock = int(_num(row, "stock", minimum=0, integer=True))
             avg = _num(row, "avg_daily_sales", required=False, minimum=0)
             rr = _num(row, "return_rate", required=False, minimum=0)
@@ -512,10 +510,10 @@ def out(b: ImportBatch, duplicate: bool = False) -> dict:
 
 def _run_one(db: Session, business_id: int, user_id: Optional[int], user_name: str, dataset: str, rows: list[dict],
              file_name: str, sheet: Optional[str], digest: str, source: str) -> tuple[ImportBatch, bool]:
-    prev = db.scalar(select(ImportBatch).where(ImportBatch.business_id == business_id, ImportBatch.dataset == dataset,
-                                               ImportBatch.content_sha256 == digest, ImportBatch.status == "completed"))
-    if prev:
-        return prev, True
+    existing_batch = db.scalar(select(ImportBatch).where(ImportBatch.business_id == business_id, ImportBatch.dataset == dataset,
+                                                          ImportBatch.content_sha256 == digest))
+    if existing_batch and existing_batch.status == "completed":
+        return existing_batch, True
     errors: list[dict] = []
     failed = 0
 
@@ -541,11 +539,21 @@ def _run_one(db: Session, business_id: int, user_id: Optional[int], user_name: s
     else:
         WRITERS[dataset](ctx, rows, fail)
     ok = ctx.created + ctx.updated + ctx.unchanged
-    b = ImportBatch(id=new_id("IMP"), business_id=business_id, user_id=user_id, dataset=dataset, file_name=file_name[:200],
-                    sheet=sheet[:100] if sheet else None, content_sha256=digest, source=source,
-                    status="completed" if ok else "failed", rows_total=len(rows), rows_created=ctx.created,
-                    rows_updated=ctx.updated, rows_unchanged=ctx.unchanged, rows_failed=failed, errors=errors)
-    db.add(b)
+    if existing_batch:
+        b = existing_batch
+        b.status = "completed" if ok else "failed"
+        b.rows_total = len(rows)
+        b.rows_created = ctx.created
+        b.rows_updated = ctx.updated
+        b.rows_unchanged = ctx.unchanged
+        b.rows_failed = failed
+        b.errors = errors
+    else:
+        b = ImportBatch(id=new_id("IMP"), business_id=business_id, user_id=user_id, dataset=dataset, file_name=file_name[:200],
+                        sheet=sheet[:100] if sheet else None, content_sha256=digest, source=source,
+                        status="completed" if ok else "failed", rows_total=len(rows), rows_created=ctx.created,
+                        rows_updated=ctx.updated, rows_unchanged=ctx.unchanged, rows_failed=failed, errors=errors)
+        db.add(b)
     db.flush()
     log_activity(db, business_id, agent=f"Seller · {user_name}"[:80],
                  action=f"Imported {spec['label'].lower()}: {ok} of {len(rows)} rows"[:200],

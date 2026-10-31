@@ -23,7 +23,7 @@ PRODUCTS_CSV = """SKU,Name,Category,Price (INR),Cost,Stock,Avg Daily Sales
 MUG-01,Ceramic Mug,Home,299,110,40,3
 LMP-02,Desk Lamp,Electronics,"1,299",640,8,1.5
 BAD-03,Broken,Home,abc,10,1,1
-BAD-04,Too cheap,Home,100,150,1,1
+BAD-04,Negative cost,Home,100,-150,1,1
 MUG-01,Duplicate Mug,Home,299,110,40,3
 """
 
@@ -36,7 +36,7 @@ def test_products_import_persists_with_summary(client):
     assert b["dataset"] == "products" and b["status"] == "completed"
     assert (b["rowsTotal"], b["created"], b["failed"]) == (5, 2, 3)
     msgs = {e["row"]: e["message"] for e in b["errors"]}
-    assert '"price" must be a number' in msgs[4] and "cost must be below" in msgs[5] and "more than once" in msgs[6]
+    assert '"price" must be a number' in msgs[4] and '"cost" can\'t be below 0' in msgs[5] and "more than once" in msgs[6]
     ps = products(client)
     assert ps["MUG-01"]["price"] == 29900 and ps["LMP-02"]["price"] == 129900 and ps["LMP-02"]["stock"] == 8
     mv = client.get("/api/stock-movements?sku=MUG-01").json()["movements"]
