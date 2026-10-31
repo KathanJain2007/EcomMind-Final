@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { BrainCircuit, Loader2, Play } from 'lucide-react'
+import { Loader2, Play } from 'lucide-react'
 import { toast } from 'sonner'
 import { useApp } from '@/store/AppContext'
 import { ApiError } from '@/lib/api'
 import { emailError } from '@/lib/validation/email'
-import { AuthShell } from './AuthShell'
+import { AuthModeSwitch, AuthShell } from './AuthShell'
+import BrandMark from '@/components/BrandMark'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -59,14 +60,13 @@ export default function Login() {
     <AuthShell>
       <div className="mb-8 lg:hidden">
         <div className="flex items-center gap-2.5">
-          <div className="btn-glow flex h-9 w-9 items-center justify-center rounded-xl">
-            <BrainCircuit className="h-5 w-5 text-white" aria-hidden />
-          </div>
+          <BrandMark className="h-9 w-9" />
           <p className="text-lg font-semibold">EcomMind</p>
         </div>
       </div>
 
-      <h2 className="text-2xl font-semibold tracking-tight">Welcome back</h2>
+      <AuthModeSwitch />
+      <h2 className="text-2xl font-bold tracking-tight">Welcome back</h2>
       <p className="mt-1 text-sm text-muted-foreground">Sign in to your autonomous commerce workspace.</p>
 
       <form onSubmit={submit} className="mt-8 space-y-4" noValidate>

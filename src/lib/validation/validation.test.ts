@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { validateGmail, EMAIL_MESSAGES } from './email'
 import { getExpectedCheckDigit, gstinChecksum, gstinLiveError, SAMPLE_GSTINS, validateGstin } from './gstin'
+import { searchCities } from '@/data/indianCities'
 
 // These cases mirror backend/tests/test_email_validation.py and
 // test_gstin_business.py so browser and server rules can't drift apart.
@@ -11,6 +12,9 @@ describe('validateGmail', () => {
     ['Asha.Rao@Gmail.COM', 'asha.rao@gmail.com'],
     ['  asharao99@gmail.com  ', 'asharao99@gmail.com'],
     ['asharao+shop@gmail.com', 'asharao+shop@gmail.com'],
+    ['aryan@gmail.com', 'aryan@gmail.com'],
+    ['aryan123@gmail.com', 'aryan123@gmail.com'],
+    ['abc@gmail.com', 'abc@gmail.com'],
   ])('accepts %s', (raw, email) => {
     const r = validateGmail(raw)
     expect(r.ok && r.email).toBe(email)
@@ -22,7 +26,7 @@ describe('validateGmail', () => {
   })
 
   it.each(['', '   ', 'plainaddress', '@gmail.com', 'asharao@', 'asha rao@gmail.com', 'asharao@@gmail.com', 'asharao@gmail',
-    '.asharao@gmail.com', 'asharao.@gmail.com', 'asha..rao@gmail.com', 'abc@gmail.com', 'a'.repeat(31) + '@gmail.com', 'asha_rao@gmail.com'])(
+    '.asharao@gmail.com', 'asharao.@gmail.com', 'asha..rao@gmail.com', 'a'.repeat(31) + '@gmail.com', 'asha_rao@gmail.com'])(
     'rejects bad format %j', (raw) => {
       const r = validateGmail(raw)
       expect(r.ok).toBe(false)
@@ -43,11 +47,27 @@ describe('validateGstin', () => {
   })
   it.each([
     ['', 'gstin_required'], ['27AAPFU0939F1Z', 'gstin_length'], ['27AAPFU0939F1Z-', 'gstin_characters'],
-    ['00AAPFU0939F1ZV', 'gstin_state_code'], ['271APFU0939F1ZV', 'gstin_pan'], ['27AAPXU0939F1ZV', 'gstin_pan_type'],
+    ['00AAPFU0939F1ZV', 'gstin_state_code'], ['271APFU0939F1ZV', 'gstin_pan'],
     ['27AAPFU0939F0ZV', 'gstin_entity_code'], ['27AAPFU0939F1YV', 'gstin_default_char'], ['27AAPFU0939F1ZA', 'gstin_checksum'],
   ])('rejects %s with %s', (g, code) => {
     const r = validateGstin(g)
     expect(r.ok ? 'ok' : r.code).toBe(code)
+  })
+  it('accepts any well-formed GSTIN with the right check digit, whatever the holder type or state', () => {
+    for (const state of ['01', '08', '27', '38', '97', '99']) {
+      for (const holder of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
+        const first14 = `${state}AAB${holder}B1234D1Z`
+        expect(validateGstin(first14 + gstinChecksum(first14)).ok).toBe(true)
+      }
+    }
+  })
+  it('accepts an LLP GSTIN (holder type E)', () => {
+    const first14 = '27AABFE1234L1Z'
+    expect(validateGstin(first14 + gstinChecksum(first14)).ok).toBe(true)
+  })
+  it('still rejects a number with a wrong check digit', () => {
+    const r = validateGstin('27ABCDE1234F1Z5')
+    expect(r.ok ? 'ok' : r.code).toBe('gstin_checksum')
   })
   it('computes the check character', () => expect(gstinChecksum('27AAPFU0939F1Z')).toBe('V'))
   it('stays quiet while a valid prefix is being typed', () => {
@@ -67,4 +87,18 @@ describe('validateGstin', () => {
       expect(validateGstin(sample.gstin).ok).toBe(true)
     }
   })
+})
+
+describe('searchCities', () => {
+  it('lists every city starting with the letter', () => {
+    const names = searchCities('b').map((c) => c.name)
+    expect(names).toEqual(expect.arrayContaining(['Bengaluru', 'Bhopal', 'Bhubaneswar', 'Bikaner', 'Bareilly']))
+    expect(names.every((n) => n.toLowerCase().startsWith('b') || n === 'Mumbai' || n === 'Vadodara' || n === 'Varanasi')).toBe(true)
+    expect(searchCities('m').map((c) => c.name)).toContain('Mumbai')
+  })
+  it('finds old city names', () => {
+    expect(searchCities('bang').map((c) => c.name)).toContain('Bengaluru')
+    expect(searchCities('bomb').map((c) => c.name)).toContain('Mumbai')
+  })
+  it('is empty until something is typed', () => expect(searchCities('  ')).toEqual([]))
 })

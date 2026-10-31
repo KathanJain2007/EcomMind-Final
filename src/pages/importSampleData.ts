@@ -17,7 +17,7 @@ export function downloadSampleRows(slotKey: string): Record<string, string>[] {
     case 'suppliers':
       return SUPPLIER_QUOTES.map((q) => ({
         supplier: SUPPLIERS.find((s) => s.id === q.supplierId)?.name.split('—')[0].trim() ?? q.supplierId,
-        sku: q.sku, unit_price: String(q.unitPrice), delivery_days: String(q.deliveryDays),
+        sku: q.sku, unit_price: String(q.unitPrice), delivery_days: String(q.deliveryDays), moq: String(q.moq), available_qty: String(q.available),
       }))
     case 'logistics':
       return LOGISTICS_QUOTES.map((q) => ({

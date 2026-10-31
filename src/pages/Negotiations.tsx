@@ -130,7 +130,7 @@ function NegotiationDetail({ id }: { id: string }) {
         <CardContent className="p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-sm font-semibold">{n.supplierName}</h2>
+              <h2 className="text-sm font-bold">{n.supplierName}</h2>
               <p className="text-xs text-muted-foreground"><span className="font-mono">{n.id}</span> · RFQ <span className="font-mono">{n.rfqId}</span> · opened {formatDateTime(n.createdAt)}</p>
             </div>
             <StatusBadge label={n.statusLabel} tone={STATUS_TONE[n.status] ?? 'neutral'} pulse={n.status === 'awaiting_supplier_response'} />
@@ -192,7 +192,7 @@ function NegotiationDetail({ id }: { id: string }) {
 
       <Card className="card-surface h-fit">
         <CardContent className="p-5">
-          <h2 className="mb-4 text-sm font-semibold">Deal summary</h2>
+          <h2 className="mb-4 text-sm font-bold">Deal summary</h2>
           <dl className="space-y-3 text-sm">
             {[
               { l: 'Product', v: `${n.productName} (${n.sku})` },

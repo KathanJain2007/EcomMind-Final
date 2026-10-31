@@ -8,9 +8,10 @@ the API never disagree. Steps:
    domain). Failure -> INVALID_FORMAT.
 3. The domain, compared case-insensitively, must be exactly "gmail.com".
    Failure -> UNSUPPORTED_DOMAIN.
-4. The local part must follow Gmail's username rules: 6-30 letters, digits or
-   dots, not starting/ending with a dot, no consecutive dots, plus an optional
-   "+tag". Failure -> INVALID_FORMAT.
+4. The local part must follow Gmail's character rules: up to 30 letters, digits
+   or dots, not starting/ending with a dot, no consecutive dots, plus an optional
+   "+tag". Failure -> INVALID_FORMAT. There's no minimum length: Gmail's 6-letter
+   floor only applies to new sign-ups, so aryan@gmail.com can be a real inbox.
 
 The stored address is lower-cased. For uniqueness we also compute a canonical
 form with dots and "+tag" removed, because Gmail delivers a.b+shop@gmail.com
@@ -38,9 +39,9 @@ _GENERAL_RE = re.compile(
     rf"^{_LOCAL_ATOM}(?:\.{_LOCAL_ATOM})*@"
     r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$"
 )
-# Gmail username: 6-30 chars of letters/digits/dots, no leading/trailing/double
+# Gmail username: 1-30 chars of letters/digits/dots, no leading/trailing/double
 # dot. Optional "+tag" for sub-addressing.
-_GMAIL_USER_RE = re.compile(r"^(?=.{6,30}$)[a-z0-9]+(?:\.[a-z0-9]+)*$")
+_GMAIL_USER_RE = re.compile(r"^(?=.{1,30}$)[a-z0-9]+(?:\.[a-z0-9]+)*$")
 _GMAIL_TAG_RE = re.compile(r"^[a-z0-9._-]{1,40}$")
 
 

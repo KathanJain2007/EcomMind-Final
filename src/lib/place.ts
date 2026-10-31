@@ -12,6 +12,8 @@ export interface PlaceValue {
   verified: boolean
 }
 
+export const EMPTY_PLACE: PlaceValue = { text: '', placeId: null, sessionToken: null, verified: false }
+
 /** Whether a location value may be submitted, given the server's policy. */
 export function locationProblem(v: PlaceValue, verificationRequired: boolean): string | undefined {
   if (v.text.trim().length < 2) return 'Enter your business location.'

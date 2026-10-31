@@ -28,7 +28,7 @@ export function DynIcon({ name, className }: { name: string; className?: string 
 
 export function ProductIcon({ icon, className }: { icon: string; className?: string }) {
   return (
-    <div className={cx('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-secondary text-brand-soft', className)}>
+    <div className={cx('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand-soft', className)}>
       <DynIcon name={icon} className="h-4.5 w-4.5" />
     </div>
   )
@@ -37,7 +37,7 @@ export function ProductIcon({ icon, className }: { icon: string; className?: str
 /* Page header with breadcrumb */
 export function PageHeader({ title, subtitle, crumbs, actions }: { title: string; subtitle?: string; crumbs?: string[]; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
       <div>
         <nav aria-label="Breadcrumb" className="mb-1.5 flex items-center gap-1 text-xs text-muted-foreground">
           <Link to="/" className="transition-colors hover:text-foreground">EcomMind</Link>
@@ -48,8 +48,8 @@ export function PageHeader({ title, subtitle, crumbs, actions }: { title: string
             </span>
           ))}
         </nav>
-        <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
+        <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-[30px] md:leading-[1.15]">{title}</h1>
+        {subtitle && <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -62,7 +62,7 @@ export function MetricCard({ label, value, delta, up, icon, hint, loading }: {
 }) {
   if (loading) {
     return (
-      <Card className="card-surface">
+      <Card className="card-surface metric-card">
         <CardContent className="p-5">
           <Skeleton className="mb-3 h-4 w-24" />
           <Skeleton className="mb-2 h-7 w-32" />
@@ -72,16 +72,16 @@ export function MetricCard({ label, value, delta, up, icon, hint, loading }: {
     )
   }
   return (
-    <Card className="card-surface card-hover">
+    <Card className="card-surface card-hover metric-card">
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand/12 text-brand-soft">{icon}</div>
+          <div className="metric-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">{icon}</div>
         </div>
-        <p className="tabular mt-2 text-2xl font-semibold tracking-tight">{value}</p>
-        <div className="mt-1.5 flex items-center gap-1.5 text-xs">
+        <p className="tabular metric-value mt-3 font-bold tracking-tight">{value}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
           {delta && (
-            <span className={cx('inline-flex items-center gap-0.5 font-medium', up ? 'text-success' : 'text-danger')}>
+            <span className={cx('tabular inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-semibold', up ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger')}>
               <TrendingUp className={cx('h-3 w-3', !up && 'rotate-180')} aria-hidden />
               {delta}
             </span>
@@ -131,7 +131,7 @@ export function ChartCard({ title, subtitle, action, children, className }: {
     <Card className={cx('card-surface', className)}>
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
         <div>
-          <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+          <CardTitle className="text-[15px]">{title}</CardTitle>
           {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
         </div>
         {action}
@@ -145,8 +145,8 @@ export function ChartCard({ title, subtitle, action, children, className }: {
 export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
   return (
     <div className="card-surface flex flex-col items-center justify-center px-6 py-16 text-center">
-      <div className="panel-grid mb-4 flex h-14 w-14 items-center justify-center rounded-xl border border-border bg-secondary">
-        <Inbox className="h-6 w-6 text-muted-foreground" aria-hidden />
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand/15 to-[var(--chart-teal)]/15">
+        <Inbox className="h-6 w-6 text-brand-soft" aria-hidden />
       </div>
       <h3 className="text-base font-semibold">{title}</h3>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">{body}</p>

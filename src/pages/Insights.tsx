@@ -6,7 +6,7 @@ import { useApiQuery, useDataStore } from '@/store/DataStore'
 import type { ApiProduct } from '@/lib/api'
 import { cx, formatPaise, shortDate } from '@/lib/format'
 import { ChartCard, ChartEmpty, ChartSkeleton, EmptyState, PageHeader, PanelError, StatusBadge } from '@/components/common'
-import { tooltipStyle } from '@/lib/chartTheme'
+import { CHART_ANIMATE, tooltipStyle } from '@/lib/chartTheme'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -68,15 +68,15 @@ export default function Insights() {
         }
       />
 
-      <Card className="card-surface mb-6 overflow-hidden">
-        <div className="h-0.5 w-full bg-gradient-to-r from-brand-soft via-brand to-[#5f8bff]" aria-hidden />
+      <Card className="card-surface hero-wash mb-6 gap-0 overflow-hidden py-0">
+        <div className="h-1 w-full bg-gradient-to-r from-brand-soft via-brand to-[var(--chart-blue)]" aria-hidden />
         <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center">
           <div className="flex flex-1 items-center gap-4">
             <div className="btn-glow flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl">
               <BrainCircuit className="h-5.5 w-5.5 text-white" aria-hidden />
             </div>
             <div>
-              <h2 className="text-base font-semibold">Business analysis</h2>
+              <h2 className="text-base font-bold">Business analysis</h2>
               <p className="text-xs text-muted-foreground">{f?.method ?? 'Forecasts, pricing and risk recalculate from your latest sales, stock and mandate.'}</p>
             </div>
           </div>
@@ -98,16 +98,16 @@ export default function Insights() {
                   <AreaChart data={fc} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                     <defs>
                       <linearGradient id="ins-fc" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#7965F2" stopOpacity={0.3} /><stop offset="100%" stopColor="#7965F2" stopOpacity={0} />
+                        <stop offset="0%" stopColor="var(--chart-purple)" stopOpacity={0.3} /><stop offset="100%" stopColor="var(--chart-purple)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                     <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={26} />
-                    <YAxis tickLine={false} axisLine={false} label={{ value: 'Units / day', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 11, dx: 14 }} />
+                    <YAxis tickLine={false} axisLine={false} label={{ value: 'Units / day', angle: -90, position: 'insideLeft', fill: 'hsl(var(--muted-foreground))', fontSize: 11, dx: 14 }} />
                     <Tooltip contentStyle={tooltipStyle} />
                     <Legend verticalAlign="top" height={24} wrapperStyle={{ fontSize: 11 }} />
-                    <Area type="monotone" dataKey="actual" name="Actual units" stroke="#9A8BFF" strokeWidth={2} fill="url(#ins-fc)" />
-                    <Area type="monotone" dataKey="predicted" name="Forecast units" stroke="#22C55E" strokeWidth={2} strokeDasharray="5 4" fill="transparent" />
+                    <Area isAnimationActive={CHART_ANIMATE} type="monotone" dataKey="actual" name="Actual units" stroke="var(--chart-purple)" strokeWidth={2} fill="url(#ins-fc)" />
+                    <Area isAnimationActive={CHART_ANIMATE} type="monotone" dataKey="predicted" name="Forecast units" stroke="var(--chart-teal)" strokeWidth={2} strokeDasharray="5 4" fill="transparent" />
                   </AreaChart>
                 </ResponsiveContainer>
               )}
@@ -169,8 +169,8 @@ export default function Insights() {
                     <XAxis type="number" tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} />
                     <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={104} />
                     <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${v.toFixed(1)}%`, 'Return rate']} labelFormatter={() => ''} />
-                    <Bar dataKey="rate" radius={[0, 6, 6, 0]} barSize={13}>
-                      {risk.map((d) => <Cell key={d.name} fill={d.rate >= 15 ? '#EF4444' : d.rate >= 8 ? '#F59E0B' : '#22C55E'} />)}
+                    <Bar isAnimationActive={CHART_ANIMATE} dataKey="rate" radius={[0, 6, 6, 0]} barSize={13}>
+                      {risk.map((d) => <Cell key={d.name} fill={d.rate >= 15 ? 'var(--chart-red)' : d.rate >= 8 ? 'var(--chart-orange)' : 'var(--chart-teal)'} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>

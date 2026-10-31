@@ -35,6 +35,8 @@ class RegisterIn(BaseModel):
     email: str = Field(max_length=400)
     password: str = Field(max_length=PASSWORD_MAX)
     category: str | None = Field(default=None, max_length=80)
+    location: str | None = Field(default=None, max_length=300)
+    gstin: str | None = Field(default=None, max_length=40)
 
 
 class LoginIn(BaseModel):
@@ -79,6 +81,8 @@ def user_out(user: User, biz: Business | None) -> dict:
 
 @router.post("/register", status_code=201)
 def register(body: RegisterIn, response: Response, db: Session = Depends(get_db)):
+    from .business import _apply_gstin, _commit  # business.py imports this module
+
     email = _check_email(body.email)
     if len(body.password) < PASSWORD_MIN:
         raise ApiError(422, "weak_password", f"Password must be at least {PASSWORD_MIN} characters.", field="password")
@@ -95,11 +99,14 @@ def register(body: RegisterIn, response: Response, db: Session = Depends(get_db)
     except IntegrityError:  # lost a race with a parallel registration
         db.rollback()
         raise ApiError(409, "email_taken", "An account with this Gmail address already exists. Sign in instead.", field="email")
-    biz = Business(owner_id=user.id, name=body.business.strip(), category=body.category)
+    biz = Business(owner_id=user.id, name=body.business.strip(), category=body.category,
+                   location_text=(body.location or "").strip() or None, location_verified=False)
     db.add(biz)
     db.flush()
+    if body.gstin and body.gstin.strip():
+        _apply_gstin(db, biz, body.gstin)  # a rejected GSTIN rolls the whole registration back
     ensure_mandate(db, biz)
-    db.commit()
+    _commit(db)
     log.info("user registered id=%s", user.id)
     _start_session(db, response, user)
     return user_out(user, biz)

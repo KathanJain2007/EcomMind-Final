@@ -3,8 +3,7 @@
 A regular GSTIN has 15 characters:
 
   positions 1-2   state code (01-38, or 97 "Other Territory", 99 "Centre Jurisdiction")
-  positions 3-12  the holder's PAN: 5 letters, 4 digits, 1 letter; the 4th PAN
-                  letter is the holder type (P, C, H, F, A, T, B, L, J, G)
+  positions 3-12  the holder's PAN: 5 letters, 4 digits, 1 letter
   position 13     entity number for that PAN in the state: 1-9 then A-Z
   position 14     "Z" by default
   position 15     check character (Luhn mod 36 over the first 14 characters)
@@ -21,7 +20,6 @@ from dataclasses import dataclass
 
 CHARSET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 STATE_CODES = {f"{n:02d}" for n in range(1, 39)} | {"97", "99"}
-PAN_HOLDER_TYPES = set("PCHFATBLJG")
 
 MESSAGES = {
     "gstin_required": "Enter your 15-character GSTIN.",
@@ -29,7 +27,6 @@ MESSAGES = {
     "gstin_characters": "GSTIN can contain only letters A-Z and digits 0-9.",
     "gstin_state_code": "The first two digits must be a valid GST state code (01-38, 97 or 99).",
     "gstin_pan": "Characters 3-12 must be a valid PAN (5 letters, 4 digits, 1 letter).",
-    "gstin_pan_type": "The 6th character must be a valid PAN holder type (P, C, H, F, A, T, B, L, J or G).",
     "gstin_entity_code": "The 13th character must be 1-9 or A-Z.",
     "gstin_default_char": "The 14th character must be Z.",
     "gstin_checksum": "The last character doesn't match the GSTIN check digit. Please re-check the number.",
@@ -69,7 +66,7 @@ def expected_check_digit(raw: object) -> str | None:
     if value[:2] not in STATE_CODES:
         return None
     pan = value[2:12]
-    if not _PAN_RE.match(pan) or pan[3] not in PAN_HOLDER_TYPES:
+    if not _PAN_RE.match(pan):
         return None
     if value[12] == "0" or value[13] != "Z":
         return None
@@ -93,8 +90,6 @@ def validate_gstin(raw: object) -> GstinCheck:
     pan = value[2:12]
     if not _PAN_RE.match(pan):
         return _fail("gstin_pan")
-    if pan[3] not in PAN_HOLDER_TYPES:
-        return _fail("gstin_pan_type")
     if value[12] == "0":
         return _fail("gstin_entity_code")
     if value[13] != "Z":

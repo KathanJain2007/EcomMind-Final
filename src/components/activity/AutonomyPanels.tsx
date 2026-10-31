@@ -55,7 +55,7 @@ export function ApprovalsPanel() {
                             variant={isPending ? 'default' : 'outline'}
                             className={cx(
                               'text-[10px] uppercase font-mono',
-                              isPending ? 'bg-warning text-black' : item.status === 'approved' ? 'text-success' : 'text-danger'
+                              isPending ? 'bg-warning text-white' : item.status === 'approved' ? 'text-success' : 'text-danger'
                             )}
                           >
                             {item.status}

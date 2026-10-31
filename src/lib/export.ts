@@ -85,7 +85,7 @@ export function exportToPDF(
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          border-bottom: 2px solid #7965f2;
+          border-bottom: 2px solid #7b2fe0;
           padding-bottom: 16px;
           margin-bottom: 20px;
         }
@@ -97,7 +97,7 @@ export function exportToPDF(
         .brand-logo {
           width: 32px;
           height: 32px;
-          background: #7965f2;
+          background: #7b2fe0;
           border-radius: 8px;
           display: flex;
           align-items: center;
@@ -205,7 +205,7 @@ export function exportToPDF(
           }
         }
         .print-btn {
-          background: #7965f2;
+          background: #7b2fe0;
           color: white;
           border: none;
           padding: 8px 16px;

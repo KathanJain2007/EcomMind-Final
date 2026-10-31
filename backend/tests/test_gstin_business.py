@@ -25,7 +25,6 @@ def test_normalises_spaces_and_case():
     ("00AAPFU0939F1ZV", "gstin_state_code"),
     ("45AAPFU0939F1ZV", "gstin_state_code"),
     ("271APFU0939F1ZV", "gstin_pan"),
-    ("27AAPXU0939F1ZV", "gstin_pan_type"),     # X isn't a PAN holder type
     ("27AAPFU0939F0ZV", "gstin_entity_code"),
     ("27AAPFU0939F1YV", "gstin_default_char"),
     ("27AAPFU0939F1ZA", "gstin_checksum"),     # one wrong check character
@@ -124,3 +123,15 @@ def test_business_type_saved(client):
     r = client.put("/api/business/onboarding", json={"business": "Asha Store", "category": "Electronics", "channel": "Amazon",
                    "businessType": "Partnership", "gstin": VALID_GSTIN, "location": {"text": "Jaipur"}})
     assert r.status_code == 200 and r.json()["business"]["businessType"] == "Partnership"
+
+
+def test_any_holder_type_with_a_correct_check_digit_is_valid():
+    from app.validation.gstin import checksum_char, validate_gstin
+    for holder in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        first14 = f"27AAB{holder}B1234D1Z"
+        assert validate_gstin(first14 + checksum_char(first14)).ok, holder
+
+
+def test_wrong_check_digit_is_still_rejected():
+    from app.validation.gstin import validate_gstin
+    assert validate_gstin("27ABCDE1234F1Z5").code == "gstin_checksum"

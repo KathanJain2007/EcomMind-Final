@@ -4,9 +4,12 @@ export const RANGES = [7, 30, 90] as const
 
 /** Follows the light/dark theme through the CSS variables in index.css. */
 export const tooltipStyle = {
-  backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 10,
-  fontSize: 12, color: 'hsl(var(--popover-foreground))',
+  backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 12,
+  fontSize: 12, color: 'hsl(var(--popover-foreground))', boxShadow: 'var(--shadow-pop)', padding: '8px 12px',
 }
+
+/** Recharts animates from JavaScript, out of reach of the CSS reduced-motion rule. */
+export const CHART_ANIMATE = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export const GRID_STROKE = 'hsl(var(--border))'
 

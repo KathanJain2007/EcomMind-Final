@@ -103,8 +103,14 @@ def seed_network(db: Session) -> None:
         if not db.get(ServiceAgent, a["id"]):
             db.add(ServiceAgent(availability="Online", **a))
     for s in SUPPLIERS:
-        if not db.get(Supplier, s["id"]):
+        existing = db.get(Supplier, s["id"])
+        if existing:
+            existing.auto_respond = s["auto_respond"]
+        else:
             db.add(Supplier(**s))
+    # Suppliers a seller imported used to stay silent; they answer from the imported quote now.
+    for imported in db.scalars(select(Supplier).where(Supplier.business_id.is_not(None), Supplier.auto_respond.is_(False))).all():
+        imported.auto_respond = True
     db.flush()
     today = date.today()
     for qid, sid, sku, price, floor, days, moq, avail, valid in SUPPLIER_QUOTES:
@@ -118,6 +124,9 @@ def seed_network(db: Session) -> None:
     for lid, courier, service, cost, eta, rating, cod in LOGISTICS:
         if not db.get(LogisticsQuote, lid):
             db.add(LogisticsQuote(id=lid, courier=courier, service=service, cost_per_500g=rupees(cost), eta_days=eta, rating=rating, cod=cod))
+    db.flush()
+    from .services.negotiation import answer_waiting_negotiations
+    answer_waiting_negotiations(db)
     db.commit()
 
 

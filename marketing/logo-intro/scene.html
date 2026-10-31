@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>EComMind Logo Intro</title>
+<style>
+  html, body { margin: 0; background: #fff; overflow: hidden; }
+  svg#stage { display: block; width: 1080px; height: 1920px; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+</style>
+</head>
+<body>
+<svg id="stage" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920">
+  <defs>
+    <radialGradient id="bgGrad" gradientUnits="userSpaceOnUse" cx="540" cy="960" r="530">
+      <stop offset="0" stop-color="#F4F8FF"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </radialGradient>
+    <radialGradient id="pulseGrad">
+      <stop offset="0" stop-color="#3D7BFF" stop-opacity=".55"/>
+      <stop offset=".55" stop-color="#3D7BFF" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#3D7BFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="corridorGrad">
+      <stop offset="0" stop-color="#2F6BFF" stop-opacity=".1"/>
+      <stop offset=".6" stop-color="#2F6BFF" stop-opacity=".035"/>
+      <stop offset="1" stop-color="#2F6BFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="royal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3A78FF"/>
+      <stop offset="1" stop-color="#0F35B4"/>
+    </linearGradient>
+    <linearGradient id="navy" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#14368F"/>
+      <stop offset="1" stop-color="#081C5E"/>
+    </linearGradient>
+    <linearGradient id="handleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0B2A8A"/>
+      <stop offset=".5" stop-color="#2460F0"/>
+      <stop offset="1" stop-color="#143FC4"/>
+    </linearGradient>
+    <linearGradient id="panelSheen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".34"/>
+      <stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="boxFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EEF3FF"/>
+      <stop offset="1" stop-color="#BCD0FB"/>
+    </linearGradient>
+    <linearGradient id="screenGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3E8BFF"/>
+      <stop offset="1" stop-color="#1846D6"/>
+    </linearGradient>
+    <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1E7BFF" stop-opacity=".55"/>
+      <stop offset=".35" stop-color="#1E6BFF"/>
+      <stop offset="1" stop-color="#1248D8"/>
+    </linearGradient>
+    <linearGradient id="arrowGrad" gradientUnits="userSpaceOnUse" x1="150" y1="965" x2="880" y2="455">
+      <stop offset="0" stop-color="#0B2A8A"/>
+      <stop offset="1" stop-color="#1E7BFF"/>
+    </linearGradient>
+    <linearGradient id="sheenGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#9CC2FF" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#9CC2FF" stop-opacity=".85"/>
+      <stop offset="1" stop-color="#9CC2FF" stop-opacity="0"/>
+    </linearGradient>
+
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0B2A8A" flood-opacity=".2"/>
+    </filter>
+    <filter id="chipShadow" x="-40%" y="-60%" width="180%" height="240%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0B2A8A" flood-opacity=".18"/>
+    </filter>
+    <filter id="floorBlur" x="-50%" y="-200%" width="200%" height="500%"><feGaussianBlur stdDeviation="16"/></filter>
+    <filter id="glowBars" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="22"/></filter>
+    <!-- Horizontal motion blur, driven per frame by actual velocity. -->
+    <filter id="mbCart" filterUnits="userSpaceOnUse" x="-1400" y="-500" width="2800" height="1000" color-interpolation-filters="sRGB"><feGaussianBlur id="mbCartBlur" stdDeviation="0 0"/></filter>
+    <filter id="mbLines" filterUnits="userSpaceOnUse" y="600" height="720" color-interpolation-filters="sRGB">
+      <feGaussianBlur id="mbLinesBlur" in="SourceGraphic" stdDeviation="0 0" result="moving"/>
+      <feGaussianBlur in="moving" stdDeviation="14" result="soft"/>
+      <feComponentTransfer in="soft" result="glow"><feFuncA id="linesGlowLevel" type="linear" slope="0"/></feComponentTransfer>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="moving"/></feMerge>
+    </filter>
+
+    <clipPath id="clipMark"><rect id="clipMarkR"/></clipPath>
+    <clipPath id="clipWord"><rect id="clipWordR"/></clipPath>
+    <clipPath id="clipTag"><rect id="clipTagR"/></clipPath>
+    <mask id="logoMask" maskUnits="userSpaceOnUse" x="0" y="0" width="1080" height="1920" style="mask-type:alpha">
+      <image class="logoImg" id="logoMaskImg"/>
+    </mask>
+  </defs>
+
+  <rect x="-2000" y="-1000" width="5080" height="3920" fill="#fff"/>
+  <rect x="-2000" y="-1000" width="5080" height="3920" fill="url(#bgGrad)"/>
+  <circle id="ambient" cx="540" cy="960" r="530" fill="url(#pulseGrad)" opacity="0"/>
+  <ellipse id="corridor" cx="540" cy="960" fill="url(#corridorGrad)" opacity="0"/>
+
+  <g id="camera">
+    <!-- Scene 1-3: motion lines + cart -->
+    <g id="linesGroup" filter="url(#mbLines)">
+      <g id="linesCore"></g>
+    </g>
+
+    <g id="cartRig" filter="url(#mbCart)">
+      <ellipse id="cartShadow" cx="20" cy="238" rx="270" ry="20" fill="#0B2A8A" opacity=".2" filter="url(#floorBlur)"/>
+      <g id="cartBody">
+        <!-- rear wall, seen over the front rim -->
+        <path d="M-168 -134H268L222 76H-118Z" fill="url(#navy)" stroke="#0A2270" stroke-width="12" stroke-linejoin="round"/>
+
+        <g id="items">
+          <!-- small package -->
+          <g class="item" data-a="5" data-f="1.7" data-p="0.4" data-r="-7">
+            <g transform="translate(-126 -128)">
+              <path d="M-40 -34H34V60H-40Z" fill="url(#boxFront)"/>
+              <path d="M-40 -34L-22 -50H52L34 -34Z" fill="#F6F9FF"/>
+              <path d="M34 -34L52 -50V44L34 60Z" fill="#9AB7F5"/>
+              <path d="M-8 -34H6V8H-8Z" fill="#2F6BFF"/>
+              <path d="M-8 -34L10 -50H24L6 -34Z" fill="#6E9BFF"/>
+            </g>
+          </g>
+          <!-- large box -->
+          <g class="item" data-a="7" data-f="1.35" data-p="1.9" data-r="3">
+            <g transform="translate(-30 -160)">
+              <path d="M-60 -66H54V90H-60Z" fill="url(#boxFront)"/>
+              <path d="M-60 -66L-34 -88H80L54 -66Z" fill="#F7FAFF"/>
+              <path d="M54 -66L80 -88V68L54 90Z" fill="#93B1F2"/>
+              <path d="M-12 -66H8V-14H-12Z" fill="#1A4BDD"/>
+              <path d="M-12 -66L14 -88H34L8 -66Z" fill="#5F90FF"/>
+              <rect x="-46" y="-2" width="40" height="7" rx="3.5" fill="#8FAEF0"/>
+              <rect x="-46" y="12" width="26" height="7" rx="3.5" fill="#AFC6F7"/>
+            </g>
+          </g>
+          <!-- shopping bag -->
+          <g class="item" data-a="8" data-f="1.55" data-p="3.1" data-r="-4">
+            <g transform="translate(92 -176)">
+              <path d="M-26 -54C-26 -98 26 -98 26 -54" fill="none" stroke="#0B2A8A" stroke-width="8" stroke-linecap="round"/>
+              <path d="M-50 -56H50L58 100H-58Z" fill="url(#royal)" stroke="#123DBE" stroke-width="4" stroke-linejoin="round"/>
+              <path d="M-50 -56H50L51 -38H-51Z" fill="#fff" opacity=".2"/>
+              <circle cx="0" cy="16" r="24" fill="#fff"/>
+              <path d="M-11 16L-3 25L12 7" fill="none" stroke="#1A4BDD" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </g>
+          </g>
+          <!-- smartphone -->
+          <g class="item" data-a="6" data-f="1.9" data-p="5.2" data-r="9">
+            <g transform="translate(182 -162)">
+              <rect x="-36" y="-82" width="72" height="150" rx="13" fill="url(#navy)"/>
+              <rect x="-30" y="-74" width="60" height="132" rx="8" fill="url(#screenGrad)"/>
+              <path d="M-20 -14L-6 -30L6 -22L22 -48" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="-20" y="2" width="40" height="6" rx="3" fill="#fff" opacity=".65"/>
+              <rect x="-20" y="16" width="26" height="6" rx="3" fill="#fff" opacity=".4"/>
+            </g>
+          </g>
+          <!-- floating coin -->
+          <g class="item" data-a="10" data-f="1.25" data-p="2.3" data-r="0">
+            <g transform="translate(-112 -252)">
+              <circle r="31" fill="#123DBE"/>
+              <circle r="31" cx="-3" cy="-3" fill="url(#royal)"/>
+              <circle r="24" cx="-3" cy="-3" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2.5"/>
+              <text x="-3" y="10" text-anchor="middle" font-size="35" font-weight="700" fill="#fff">₹</text>
+            </g>
+          </g>
+          <!-- payment card -->
+          <g class="item" data-a="5" data-f="2.1" data-p="0.9" data-r="-3">
+            <g transform="translate(58 -106) rotate(-11)">
+              <rect x="-62" y="-40" width="124" height="80" rx="11" fill="#fff" stroke="#BCD0FB" stroke-width="2"/>
+              <rect x="-62" y="-22" width="124" height="15" fill="#0B2A8A"/>
+              <rect x="-48" y="6" width="22" height="16" rx="3.5" fill="#2F6BFF"/>
+              <rect x="-16" y="10" width="62" height="6" rx="3" fill="#BCD0FB"/>
+            </g>
+          </g>
+        </g>
+
+        <!-- chassis, frame + handle -->
+        <path d="M-90 136V160M170 136V160" stroke="#0A2270" stroke-width="16" stroke-linecap="round"/>
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M-296 -172H-236Q-218 -172 -214 -154L-154 110Q-149 132 -127 132H222" stroke="#061A5A" stroke-width="22" transform="translate(5 7)"/>
+          <path d="M-296 -172H-236Q-218 -172 -214 -154L-154 110Q-149 132 -127 132H222" stroke="url(#handleGrad)" stroke-width="21"/>
+          <path d="M-290 -176H-238Q-224 -176 -220 -160L-160 104" stroke="#fff" stroke-opacity=".38" stroke-width="4"/>
+          <path d="M-306 -172H-258" stroke="#081C5E" stroke-width="27"/>
+        </g>
+        <!-- front panel -->
+        <path d="M-192 -102H244L198 100H-142Z" fill="url(#royal)" stroke="#1648D8" stroke-width="14" stroke-linejoin="round"/>
+        <g stroke="#fff" stroke-opacity=".2" stroke-width="7" stroke-linecap="round">
+          <path d="M-166 -48H220"/>
+          <path d="M-153 6H207"/>
+          <path d="M-142 56H194"/>
+        </g>
+        <path d="M-192 -102H244L232 -46L-90 96H-142Z" fill="url(#panelSheen)"/>
+        <path d="M-196 -106H248" stroke="#BCD4FF" stroke-opacity=".9" stroke-width="5" stroke-linecap="round"/>
+
+        <g class="wheel" transform="translate(-90 186)">
+          <circle r="33" fill="url(#navy)"/><circle r="17" fill="#2F6BFF"/>
+          <g class="spokes"><path d="M-17 0H17M0 -17V17" stroke="#fff" stroke-opacity=".75" stroke-width="4"/></g>
+          <circle r="5.5" fill="#fff"/>
+        </g>
+        <g class="wheel" transform="translate(170 186)">
+          <circle r="33" fill="url(#navy)"/><circle r="17" fill="#2F6BFF"/>
+          <g class="spokes"><path d="M-17 0H17M0 -17V17" stroke="#fff" stroke-opacity=".75" stroke-width="4"/></g>
+          <circle r="5.5" fill="#fff"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- Scene 4: point, ripples, graph -->
+    <circle id="pulse" cx="540" cy="960" fill="url(#pulseGrad)" opacity="0"/>
+    <circle id="ripple1" cx="540" cy="960" fill="none" stroke="#2F6BFF" opacity="0"/>
+    <circle id="ripple2" cx="540" cy="960" fill="none" stroke="#6E9BFF" opacity="0"/>
+
+    <g id="graph">
+      <g id="grid" stroke="#9DB9F5" stroke-width="2.5" stroke-dasharray="3 13" stroke-linecap="round"></g>
+      <ellipse cx="540" cy="1226" rx="370" ry="20" fill="#0B2A8A" opacity=".16" filter="url(#floorBlur)"/>
+      <g id="barsGlow" filter="url(#glowBars)" opacity=".42"></g>
+      <g id="bars"></g>
+      <path id="base" d="M180 1200H906" stroke="#0B2A8A" stroke-width="7" stroke-linecap="round"/>
+      <path id="trendHalo" fill="none" stroke="#fff" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" pathLength="1"/>
+      <path id="trend" fill="none" stroke="#0A9BFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" pathLength="1"/>
+      <g id="nodes"></g>
+      <path id="arrowBody" fill="url(#arrowGrad)"/>
+      <path id="arrowHead" fill="#1E7BFF" stroke="#1E7BFF" stroke-width="7" stroke-linejoin="round"/>
+    </g>
+
+    <g id="support"></g>
+
+    <circle id="pointHalo" cx="540" cy="960" fill="url(#pulseGrad)" opacity="0"/>
+    <circle id="point" cx="540" cy="960" fill="#1E7BFF" opacity="0"/>
+  </g>
+
+  <!-- Scene 5: the lockup image is only ever scaled uniformly, never redrawn. -->
+  <g id="logoStage">
+    <image class="logoImg" id="logoMark" clip-path="url(#clipMark)"/>
+    <image class="logoImg" id="logoWord" clip-path="url(#clipWord)"/>
+    <image class="logoImg" id="logoTag" clip-path="url(#clipTag)"/>
+    <image class="logoImg" id="logoFull"/>
+    <rect id="sheen" fill="url(#sheenGrad)" mask="url(#logoMask)" opacity="0" style="mix-blend-mode:screen"/>
+  </g>
+</svg>
+
+<script>
+// ---- Swap the logo here. Bands are fractions of the image height. ----
+const LOGO = {
+  src: 'logo.svg',
+  aspect: 900 / 620,          // image width / height
+  width: 880,                 // on-screen width of the final lockup
+  markBand: [0, 0.565],       // symbol
+  wordBand: [0.565, 0.82],    // wordmark
+  tagBand: [0.82, 1],         // tagline
+  markCenterX: 0.5,
+  // Where the graph's bars land in the image, so it resolves into the symbol. Fractions of width/height.
+  barsX: [404 / 900, 576 / 900],
+  barsBaseY: 254 / 620,
+};
+
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const el = (name, attrs = {}, parent) => {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+};
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, p) => a + (b - a) * p;
+function bez(x1, y1, x2, y2) {
+  const c = (a, b, s) => 3 * a * s * (1 - s) ** 2 + 3 * b * s * s * (1 - s) + s ** 3;
+  return x => {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; c(x1, x2, m) < x ? lo = m : hi = m; }
+    return c(y1, y2, (lo + hi) / 2);
+  };
+}
+const easeEntrance = bez(.16, .62, .24, 1);
+const easeLaunch = bez(.62, 0, .92, .46);
+const easeOutSoft = bez(.2, .75, .3, 1);
+const easeInOut = bez(.5, 0, .2, 1);
+const spring = (p, damp = 6.5, freq = 11) => p <= 0 ? 0 : p >= 1 ? 1 : 1 - Math.exp(-damp * p) * Math.cos(freq * p) * (1 - p) ** .5;
+
+// ---- Timeline (seconds) ----
+const T = {
+  arrive: 1.25, launch: 1.75, gone: 2.25,
+  point: 2.2, graphIn: 2.34, graphSet: 2.95,
+  morph: 3.42, logoMark: 3.68, chime: 4.0, wordEnd: 4.22, tagStart: 4.08, tagEnd: 4.42, hold: 4.62,
+};
+const CENTER_X = 540, CENTER_Y = 960, CART_SCALE = .95;
+// Same composition for both videos; landscape just frames more of the stage, so travel distances grow.
+const LANDSCAPE = location.search.includes('landscape');
+const FRAME = LANDSCAPE ? { x: -509, y: 370, w: 2098, h: 1180, pxW: 1920, pxH: 1080 } : { x: 0, y: 0, w: 1080, h: 1920, pxW: 1080, pxH: 1920 };
+const TRAVEL = LANDSCAPE ? { start: -820, cart: 2600, lines: 1520 } : { start: -420, cart: 1500, lines: 760 };
+$('mbLines').setAttribute('x', FRAME.x - 200);
+$('mbLines').setAttribute('width', FRAME.w + 400);
+$('stage').setAttribute('viewBox', `${FRAME.x} ${FRAME.y} ${FRAME.w} ${FRAME.h}`);
+$('stage').style.width = FRAME.pxW + 'px';
+$('stage').style.height = FRAME.pxH + 'px';
+
+// Position functions stay separate so velocity (motion blur) is derived, not guessed.
+function cartX(t) {
+  if (t < T.arrive) return lerp(TRAVEL.start, CENTER_X, easeEntrance(seg(t, 0, T.arrive)));
+  if (t < T.launch) return CENTER_X;
+  return CENTER_X + TRAVEL.cart * easeLaunch(seg(t, T.launch, T.gone));
+}
+// Right-hand end of motion line i: rides with the cart, detaches left, then sweeps left.
+function lineEnd(i, t) {
+  const attached = Math.min(cartX(t), CENTER_X) - 214;
+  const detach = -(22 + i * 9) * easeInOut(seg(t, T.arrive + .02, T.launch));
+  const sweep = -TRAVEL.lines * easeLaunch(seg(t, T.launch + [.012, 0, .02][i], T.gone));
+  return attached + detach + sweep;
+}
+const speedOf = (f, t) => (f(t + .004) - f(t - .004)) / .008;
+
+// ---- Build dynamic geometry ----
+const LINES = [{ y: -64, len: 262 }, { y: 0, len: 196 }, { y: 64, len: 238 }];
+LINES.forEach(l => {
+  l.core = el('rect', { height: 16, rx: 8, fill: 'url(#lineGrad)' }, $('linesCore'));
+});
+
+const items = [...document.querySelectorAll('.item')].map(n => ({
+  n, a: +n.dataset.a, f: +n.dataset.f, p: +n.dataset.p, r: +n.dataset.r,
+}));
+const spokes = [...document.querySelectorAll('.spokes')];
+
+[1020, 860, 700].forEach(y => el('path', { d: `M196 ${y}H890` }, $('grid')));
+const BAR_W = 92, BAR_DX = 26, BAR_DY = -18, BAR_BASE = 1200;
+const BARS = [
+  { x: 214, h: 118, c: '#9BBCFF', top: '#C7DAFF', side: '#7296EA' },
+  { x: 340, h: 204, c: '#5C8FFF', top: '#92B6FF', side: '#3D6CDC' },
+  { x: 466, h: 298, c: '#2F6BFF', top: '#6E9BFF', side: '#1E4CCB' },
+  { x: 592, h: 396, c: '#1A4BDD', top: '#4F7FF2', side: '#1236A6' },
+  { x: 718, h: 508, c: '#0B2A8A', top: '#2859D0', side: '#071B5E' },
+];
+BARS.forEach(b => {
+  b.glow = el('rect', { x: b.x, width: BAR_W, fill: b.c }, $('barsGlow'));
+  b.side = el('path', { fill: b.side }, $('bars'));
+  b.topF = el('path', { fill: b.top }, $('bars'));
+  b.front = el('rect', { x: b.x, width: BAR_W, fill: b.c }, $('bars'));
+  b.hi = el('rect', { x: b.x + 8, width: 7, rx: 3.5, fill: '#fff', opacity: .3 }, $('bars'));
+  b.cx = b.x + BAR_W / 2;
+  b.ty = BAR_BASE - b.h;
+});
+// Smooth analytics line through the bar tops (Catmull-Rom to Bezier).
+const tp = BARS.map(b => [b.cx, b.ty - 2]);
+let trendD = `M${tp[0][0]} ${tp[0][1]}`;
+for (let i = 0; i < tp.length - 1; i++) {
+  const p0 = tp[i - 1] || tp[i], p1 = tp[i], p2 = tp[i + 1], p3 = tp[i + 2] || p2;
+  trendD += `C${p1[0] + (p2[0] - p0[0]) / 6} ${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6} ${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]} ${p2[1]}`;
+}
+$('trend').setAttribute('d', trendD);
+$('trendHalo').setAttribute('d', trendD);
+tp.forEach((p, i) => {
+  const g = el('g', {}, $('nodes'));
+  el('circle', { cx: 0, cy: 0, r: 15, fill: '#fff' }, g);
+  el('circle', { cx: 0, cy: 0, r: 8, fill: '#0A9BFF' }, g);
+  BARS[i].node = g;
+});
+
+// Tapered curved arrow, sampled from a cubic.
+const A = [[150, 965], [400, 935], [680, 760], [880, 455]];
+const arrowPt = s => {
+  const u = 1 - s;
+  const b = [u ** 3, 3 * u * u * s, 3 * u * s * s, s ** 3];
+  return [0, 1].map(k => b[0] * A[0][k] + b[1] * A[1][k] + b[2] * A[2][k] + b[3] * A[3][k]);
+};
+function drawArrow(p) {
+  if (p <= 0) { $('arrowBody').setAttribute('d', ''); $('arrowHead').setAttribute('d', ''); return; }
+  const left = [], right = [], N = 48;
+  for (let i = 0; i <= N; i++) {
+    const s = p * i / N, q = arrowPt(s), q2 = arrowPt(Math.min(1, s + .004)), q0 = arrowPt(Math.max(0, s - .004));
+    const a = Math.atan2(q2[1] - q0[1], q2[0] - q0[0]);
+    const w = lerp(1.5, 13, i / N);
+    left.push([q[0] + Math.sin(a) * w, q[1] - Math.cos(a) * w]);
+    right.push([q[0] - Math.sin(a) * w, q[1] + Math.cos(a) * w]);
+  }
+  const pts = left.concat(right.reverse()).map(q => q.map(v => v.toFixed(1)).join(' ')).join('L');
+  $('arrowBody').setAttribute('d', 'M' + pts + 'Z');
+  const tip = arrowPt(p), back = arrowPt(Math.max(0, p - .012));
+  const a = Math.atan2(tip[1] - back[1], tip[0] - back[0]);
+  const hs = lerp(.3, 1, clamp(p / .55));
+  const at = (d, o) => `${(tip[0] + (Math.cos(a) * d - Math.sin(a) * o) * hs).toFixed(1)} ${(tip[1] + (Math.sin(a) * d + Math.cos(a) * o) * hs).toFixed(1)}`;
+  $('arrowHead').setAttribute('d', `M${at(44, 0)}L${at(-16, 34)}L${at(-16, -34)}Z`);
+}
+
+// Supporting elements, each a small group that pops in on a stagger.
+const support = [];
+function addSupport(x, y, at, build, float = 5) {
+  const g = el('g', {}, $('support'));
+  const inner = el('g', {}, g);
+  build(inner);
+  support.push({ g, x, y, at, float, ph: support.length * 1.7 });
+}
+const chip = text => g => {
+  el('rect', { x: -96, y: -40, width: 192, height: 80, rx: 40, fill: '#fff', filter: 'url(#chipShadow)' }, g);
+  el('path', { d: 'M-56 -16L-43 4H-52V15H-60V4H-69Z', fill: '#1E6BFF', stroke: '#1E6BFF', 'stroke-width': 3, 'stroke-linejoin': 'round' }, g);
+  const t = el('text', { x: -36, y: 14, 'font-size': 40, 'font-weight': 700, fill: '#0B2A8A', 'letter-spacing': -.5 }, g);
+  t.textContent = text;
+};
+const coin = sym => g => {
+  el('circle', { r: 40, cx: 3, cy: 4, fill: '#0F35B4' }, g);
+  el('circle', { r: 40, fill: 'url(#royal)' }, g);
+  el('circle', { r: 31, fill: 'none', stroke: '#fff', 'stroke-opacity': .5, 'stroke-width': 3 }, g);
+  const t = el('text', { y: 16, 'text-anchor': 'middle', 'font-size': 45, 'font-weight': 700, fill: '#fff' }, g);
+  t.textContent = sym;
+};
+const miniUp = g => el('path', { d: 'M0 -18L16 6H5V19H-5V6H-16Z', fill: '#2F6BFF', stroke: '#2F6BFF', 'stroke-width': 3, 'stroke-linejoin': 'round' }, g);
+const txCard = g => {
+  el('rect', { x: -88, y: -38, width: 176, height: 76, rx: 18, fill: '#fff', filter: 'url(#chipShadow)' }, g);
+  el('path', { d: 'M-66 14L-38 -6L-14 6L14 -20', fill: 'none', stroke: '#1E6BFF', 'stroke-width': 6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, g);
+  el('rect', { x: 28, y: -17, width: 40, height: 8, rx: 4, fill: '#0B2A8A' }, g);
+  el('rect', { x: 28, y: 3, width: 26, height: 8, rx: 4, fill: '#BCD0FB' }, g);
+};
+const txIcon = g => {
+  el('circle', { r: 36, fill: '#fff', filter: 'url(#chipShadow)' }, g);
+  el('path', { d: 'M-17 -9H15M6 -18L16 -9L6 0M17 9H-15M-6 0L-16 9L-6 18', fill: 'none', stroke: '#1A4BDD', 'stroke-width': 5.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, g);
+};
+addSupport(244, 768, 2.68, chip('+12%'));
+addSupport(584, 556, 2.8, chip('+25%'));
+addSupport(374, 610, 2.9, coin('₹'), 7);
+addSupport(978, 864, 2.96, coin('$'), 7);
+addSupport(110, 910, 3.0, miniUp, 6);
+addSupport(978, 1060, 3.04, miniUp, 6);
+addSupport(330, 1338, 2.98, txCard, 4);
+addSupport(744, 1338, 3.06, txIcon, 4);
+
+// ---- Logo placement ----
+const LOGO_H = LOGO.width / LOGO.aspect;
+const LOGO_X = CENTER_X - LOGO.width / 2, LOGO_Y = CENTER_Y - LOGO_H / 2;
+document.querySelectorAll('.logoImg').forEach(n => {
+  n.setAttribute('href', LOGO.src);
+  n.setAttribute('x', LOGO_X); n.setAttribute('y', LOGO_Y);
+  n.setAttribute('width', LOGO.width); n.setAttribute('height', LOGO_H);
+  n.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+});
+const bandY = f => LOGO_Y + f * LOGO_H;
+const MARK_CX = LOGO_X + LOGO.markCenterX * LOGO.width;
+const MARK_CY = bandY((LOGO.markBand[0] + LOGO.markBand[1]) / 2);
+const GRAPH_BARS_X = [214, 810];
+const GRAPH_END_SCALE = (LOGO.barsX[1] - LOGO.barsX[0]) * LOGO.width / (GRAPH_BARS_X[1] - GRAPH_BARS_X[0]);
+const MORPH_X = LOGO_X + (LOGO.barsX[0] + LOGO.barsX[1]) / 2 * LOGO.width - GRAPH_END_SCALE * ((GRAPH_BARS_X[0] + GRAPH_BARS_X[1]) / 2 - CENTER_X);
+const MORPH_Y = bandY(LOGO.barsBaseY) - GRAPH_END_SCALE * (1200 - CENTER_Y);
+
+const setT = (n, v) => n.setAttribute('transform', v);
+const setO = (n, v) => n.setAttribute('opacity', v.toFixed(4));
+const rect = (n, x, y, w, h) => { n.setAttribute('x', x); n.setAttribute('y', y); n.setAttribute('width', Math.max(0, w)); n.setAttribute('height', h); };
+
+// ---- The whole film is a pure function of t ----
+function renderAt(t) {
+  // Camera: slow push on the cart, longer push on the graph, exactly 1:1 before the logo lands.
+  const camS = 1 + .03 * easeInOut(seg(t, 0, T.launch)) - .03 * easeInOut(seg(t, T.launch, T.point))
+    + .035 * easeOutSoft(seg(t, T.graphIn, T.morph)) - .035 * easeInOut(seg(t, T.morph, T.logoMark + .1));
+  setT($('camera'), `translate(${CENTER_X} ${CENTER_Y}) scale(${camS}) translate(${-CENTER_X} ${-CENTER_Y})`);
+
+  // --- Cart ---
+  const x = cartX(t), vx = speedOf(cartX, t);
+  const launching = seg(t, T.launch, T.gone);
+  const onScreen = t < T.gone + .02;
+  $('cartRig').setAttribute('display', onScreen ? 'inline' : 'none');
+  setT($('cartRig'), `translate(${x.toFixed(2)} ${CENTER_Y + 8}) scale(${CART_SCALE})`);
+  // Lean forward as it brakes, spring upright on settling, lean back under launch thrust.
+  const brake = 2.1 * Math.sin(Math.PI * seg(t, .55, T.arrive)) ** 2;
+  const settleP = seg(t, T.arrive - .08, T.launch - .02);
+  const settleLean = settleP > 0 ? 1.2 * Math.exp(-6 * settleP) * Math.sin(16 * settleP) : 0;
+  const thrust = -4.4 * easeOutSoft(launching);
+  setT($('cartBody'), `rotate(${(brake + settleLean + thrust).toFixed(3)} 40 215)`);
+  $('mbCartBlur').setAttribute('stdDeviation', `${Math.min(30, Math.abs(vx) * .0052).toFixed(2)} 0`);
+
+  // Items ride in the cart: gentle float, a little extra bounce when it brakes.
+  const bounce = .9 + 1.4 * Math.exp(-7 * seg(t, T.arrive - .12, T.launch)) * seg(t, .9, T.arrive - .12);
+  items.forEach(i => {
+    const y = Math.sin(t * i.f * 2 * Math.PI + i.p) * i.a * bounce;
+    const lag = -22 * easeOutSoft(launching) * (i.a / 10);
+    const r = i.r + Math.sin(t * i.f * 3.4 + i.p) * 1.5;
+    setT(i.n, `translate(${lag.toFixed(2)} ${y.toFixed(2)}) rotate(${r.toFixed(2)} 0 -120)`);
+  });
+  spokes.forEach(s => setT(s, `rotate(${(x * 1.3).toFixed(1)})`));
+
+  // --- Motion lines ---
+  const glowUp = easeInOut(seg(t, T.arrive, T.launch));
+  let maxLineV = 0;
+  LINES.forEach((l, i) => {
+    const end = lineEnd(i, t), v = speedOf(tt => lineEnd(i, tt), t);
+    if (t >= T.launch) maxLineV = Math.max(maxLineV, Math.abs(v));
+    const stretch = 1 + (t >= T.launch ? Math.min(1.5, Math.abs(v) / 1500) : 0);
+    const len = l.len * stretch, y = CENTER_Y + 8 + l.y * CART_SCALE;
+    rect(l.core, end - len, y - 8, len, 16);
+  });
+  $('linesGlowLevel').setAttribute('slope', (1.5 * glowUp).toFixed(3));
+  $('linesGroup').setAttribute('display', LINES.some((_, i) => lineEnd(i, t) > FRAME.x - 120) ? 'inline' : 'none');
+  $('mbLinesBlur').setAttribute('stdDeviation', `${Math.min(30, maxLineV * .0085).toFixed(2)} 0`);
+
+  // --- Corridor: pale light where the two sides parted ---
+  const openP = easeOutSoft(seg(t, T.launch + .05, T.gone + .05));
+  $('corridor').setAttribute('rx', (530 * openP).toFixed(1));
+  $('corridor').setAttribute('ry', (500 * openP).toFixed(1));
+  setO($('corridor'), seg(t, T.launch, T.launch + .2) * (1 - easeInOut(seg(t, T.graphIn + .1, T.graphSet))));
+
+  // --- Point, pulse and ripples ---
+  const ptIn = easeOutSoft(seg(t, T.point, T.point + .1));
+  const ptOut = easeInOut(seg(t, T.graphIn, T.graphIn + .16));
+  $('point').setAttribute('r', (ptIn * 17 * (1 + .7 * ptOut)).toFixed(2));
+  setO($('point'), ptIn * (1 - ptOut));
+  $('pointHalo').setAttribute('r', (ptIn * 92 * (1 + 1.3 * ptOut)).toFixed(2));
+  setO($('pointHalo'), ptIn * (1 - ptOut) * .9);
+
+  const pulseP = seg(t, T.graphIn, T.graphIn + .52);
+  $('pulse').setAttribute('r', (easeOutSoft(pulseP) * 530).toFixed(1));
+  setO($('pulse'), pulseP > 0 ? .62 * (1 - pulseP) ** 1.4 : 0);
+  [['ripple1', 0, 525, 5], ['ripple2', .11, 400, 3]].forEach(([id, d, R, sw]) => {
+    const p = seg(t, T.graphIn + d, T.graphIn + d + .6);
+    $(id).setAttribute('r', (easeOutSoft(p) * R).toFixed(1));
+    $(id).setAttribute('stroke-width', (sw * (1 - p) + .5).toFixed(2));
+    setO($(id), p > 0 && p < 1 ? .62 * (1 - p) : 0);
+  });
+  setO($('ambient'), .2 * easeOutSoft(seg(t, T.graphIn, T.graphSet)) * (1 - easeInOut(seg(t, T.morph, T.chime))));
+
+  // --- Graph: grows out of the point, spring-settles, then shrinks into the logo mark ---
+  const grow = spring(seg(t, T.graphIn, T.graphSet), 6.2, 9.5);
+  const morph = easeInOut(seg(t, T.morph, T.logoMark + .1));
+  const graphVisible = t >= T.graphIn && t < T.logoMark + .1;
+  $('graph').setAttribute('display', graphVisible ? 'inline' : 'none');
+  if (graphVisible) {
+    const s0 = lerp(.03, 1, grow);
+    const s = lerp(s0, GRAPH_END_SCALE, morph);
+    const cx = lerp(CENTER_X, MORPH_X, morph), cy = lerp(CENTER_Y, MORPH_Y, morph);
+    // Pseudo-3D: the graph swings up toward the viewer as it scales.
+    const tilt = (1 - grow) * -7, squash = 1 - (1 - grow) * .12;
+    setT($('graph'), `translate(${cx.toFixed(2)} ${cy.toFixed(2)}) skewY(${tilt.toFixed(2)}) scale(${s.toFixed(4)} ${(s * squash).toFixed(4)}) translate(${-CENTER_X} ${-CENTER_Y})`);
+    setO($('graph'), 1 - easeInOut(seg(t, T.logoMark - .1, T.logoMark + .1)));
+
+    BARS.forEach((b, i) => {
+      const hp = spring(seg(t, T.graphIn + .02 + i * .055, T.graphIn + .5 + i * .055), 6, 10);
+      const h = b.h * hp, y = BAR_BASE - h;
+      rect(b.front, b.x, y, BAR_W, h);
+      rect(b.glow, b.x, y, BAR_W, h);
+      rect(b.hi, b.x + 8, y + 8, 7, Math.max(0, h - 16));
+      b.side.setAttribute('d', `M${b.x + BAR_W} ${y}L${b.x + BAR_W + BAR_DX} ${y + BAR_DY}V${BAR_BASE + BAR_DY}L${b.x + BAR_W} ${BAR_BASE}Z`);
+      b.topF.setAttribute('d', `M${b.x} ${y}L${b.x + BAR_DX} ${y + BAR_DY}H${b.x + BAR_W + BAR_DX}L${b.x + BAR_W} ${y}Z`);
+    });
+    setO($('grid'), seg(t, T.graphIn + .2, T.graphIn + .5));
+    const lineP = easeInOut(seg(t, T.graphIn + .24, T.graphIn + .72));
+    [$('trend'), $('trendHalo')].forEach(n => {
+      n.setAttribute('stroke-dasharray', `${lineP} 1`);
+      setO(n, lineP > 0 ? 1 : 0);
+    });
+    BARS.forEach((b, i) => {
+      const ns = spring(seg(t, T.graphIn + .28 + i * .09, T.graphIn + .58 + i * .09), 6, 11);
+      setT(b.node, `translate(${tp[i][0]} ${tp[i][1]}) scale(${ns.toFixed(3)})`);
+    });
+    drawArrow(easeInOut(seg(t, T.graphIn + .34, T.graphIn + .88)));
+  }
+
+  // --- Supporting elements: staggered in, drawn back to centre on the morph ---
+  $('support').setAttribute('display', t < T.logoMark ? 'inline' : 'none');
+  support.forEach((s, i) => {
+    const pin = spring(seg(t, s.at, s.at + .32), 6, 11);
+    const out = easeInOut(seg(t, T.morph - .04 + i * .012, T.morph + .2 + i * .012));
+    const sc = pin * (1 - out);
+    const px = lerp(s.x, CENTER_X, out), py = lerp(s.y, CENTER_Y, out) + Math.sin(t * 2.6 + s.ph) * s.float;
+    setT(s.g, `translate(${px.toFixed(2)} ${py.toFixed(2)}) scale(${sc.toFixed(3)})`);
+    setO(s.g, Math.min(1, sc * 4));
+  });
+
+  // --- Logo ---
+  const finished = t >= T.hold;
+  $('logoFull').setAttribute('display', finished ? 'inline' : 'none');
+  ['logoMark', 'logoWord', 'logoTag'].forEach(id => $(id).setAttribute('display', finished ? 'none' : 'inline'));
+
+  if (!finished) {
+    const markP = easeInOut(seg(t, T.logoMark - .1, T.logoMark + .14));
+    const markS = lerp(.965, 1, spring(seg(t, T.logoMark - .1, T.logoMark + .45), 6, 10));
+    setT($('logoMark'), `translate(${MARK_CX} ${MARK_CY}) scale(${markS.toFixed(4)}) translate(${-MARK_CX} ${-MARK_CY})`);
+    setO($('logoMark'), markP);
+    rect($('clipMarkR'), LOGO_X - 40, bandY(LOGO.markBand[0]) - 40, LOGO.width + 80, (LOGO.markBand[1] - LOGO.markBand[0]) * LOGO_H + 40);
+
+    // Wordmark opens outward from the centre, rising a touch through the band.
+    const wp = bez(.2, .7, .2, 1)(seg(t, T.chime - .14, T.wordEnd));
+    const ww = (LOGO.width + 40) * wp;
+    rect($('clipWordR'), CENTER_X - ww / 2, bandY(LOGO.wordBand[0]), ww, (LOGO.wordBand[1] - LOGO.wordBand[0]) * LOGO_H);
+    setT($('logoWord'), `translate(0 ${(16 * (1 - wp)).toFixed(2)})`);
+    setO($('logoWord'), wp > 0 ? 1 : 0);
+
+    const tp2 = bez(.25, .6, .25, 1)(seg(t, T.tagStart, T.tagEnd));
+    rect($('clipTagR'), LOGO_X - 20, bandY(LOGO.tagBand[0]), (LOGO.width + 40) * tp2, (LOGO.tagBand[1] - LOGO.tagBand[0]) * LOGO_H);
+    setT($('logoTag'), `translate(0 ${(12 * (1 - tp2)).toFixed(2)})`);
+    setO($('logoTag'), tp2 > 0 ? 1 : 0);
+  }
+
+  // A single light passes over the finished lockup, gone before the clean hold.
+  const sh = seg(t, T.chime + .02, T.chime + .58);
+  rect($('sheen'), LOGO_X - 220 + (LOGO.width + 220) * easeInOut(sh), LOGO_Y, 220, LOGO_H);
+  setO($('sheen'), sh > 0 && sh < 1 ? Math.sin(Math.PI * sh) : 0);
+}
+
+window.renderAt = renderAt;
+window.DURATION = 5;
+// Exposed so the render script can assert direction and corridor numerically.
+window.probe = t => ({ cart: cartX(t), lines: LINES.map((_, i) => lineEnd(i, t)) });
+window.sceneReady = Promise.all(
+  [...document.querySelectorAll('image.logoImg')].slice(0, 1).map(() => new Promise((res, rej) => {
+    const im = new Image(); im.onload = res; im.onerror = rej; im.src = LOGO.src;
+  }))
+).then(() => document.fonts.ready);
+
+renderAt(0);
+// Opened directly in a browser (no ?render), it just loops for preview.
+if (!location.search.includes('render')) {
+  const fit = () => { const s = Math.min(innerWidth / FRAME.pxW, innerHeight / FRAME.pxH); const st = $('stage').style; st.width = FRAME.pxW * s + 'px'; st.height = FRAME.pxH * s + 'px'; st.margin = '0 auto'; };
+  addEventListener('resize', fit); fit();
+  const t0 = performance.now();
+  (function loop(now) { renderAt(((now - t0) / 1000) % 6 > 5 ? 5 : ((now - t0) / 1000) % 6); requestAnimationFrame(loop); })(t0);
+}
+</script>
+</body>
+</html>

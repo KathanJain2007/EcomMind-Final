@@ -5,22 +5,19 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["Inter Tight", "ui-sans-serif", "system-ui", "sans-serif"],
+        heading: ["Plus Jakarta Sans", "Inter Tight", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "ui-monospace", "monospace"],
       },
       colors: {
-        surface: {
-          DEFAULT: "#1B2740",
-          deep: "#10172A",
-        },
         brand: {
-          DEFAULT: "#7965F2",
-          soft: "#9A8BFF",
-          deep: "#5B4BD6",
+          DEFAULT: "rgb(var(--brand) / <alpha-value>)",
+          soft: "rgb(var(--brand-soft) / <alpha-value>)",
+          deep: "rgb(var(--brand-deep) / <alpha-value>)",
         },
-        success: "#22C55E",
-        warning: "#F59E0B",
-        danger: "#EF4444",
+        success: "rgb(var(--success) / <alpha-value>)",
+        warning: "rgb(var(--warning) / <alpha-value>)",
+        danger: "rgb(var(--danger) / <alpha-value>)",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

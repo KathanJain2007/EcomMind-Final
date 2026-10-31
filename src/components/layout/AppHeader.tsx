@@ -66,7 +66,7 @@ export function AppHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-border bg-background/85 px-4 backdrop-blur-md md:gap-3 md:px-6">
+    <header className="glass sticky top-3 z-20 mx-3 mt-3 flex h-16 items-center gap-2 rounded-2xl border px-3 md:mx-4 md:gap-3 md:px-5">
       {/* Mobile menu */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetTrigger asChild>
@@ -97,7 +97,7 @@ export function AppHeader() {
           onKeyDown={(e) => { if (e.key === 'Enter' && results[0]) go(results[0].route); if (e.key === 'Escape') setSearchOpen(false) }}
           placeholder="Search products, agents, pages…"
           aria-label="Global search"
-          className="h-9 w-full rounded-lg border border-border bg-card/70 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground/70 focus:border-brand/60 focus:outline-none focus:ring-2 focus:ring-brand/25"
+          className="h-10 w-full rounded-xl border border-border bg-card pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground/70 focus:border-brand/60 focus:outline-none focus:ring-[3px] focus:ring-brand/20"
         />
         {searchOpen && results.length > 0 && (
           <div className="absolute left-0 right-0 top-11 z-40 overflow-hidden rounded-xl border border-border bg-popover shadow-xl">

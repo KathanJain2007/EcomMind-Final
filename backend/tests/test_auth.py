@@ -110,3 +110,26 @@ def test_session_endpoint(client):
     register(client)
     body = client.get("/api/auth/session").json()
     assert body["authenticated"] is True and body["user"]["email"] == "seller.one@gmail.com"
+
+
+def test_short_gmail_username_is_accepted(client):
+    r = client.post("/api/auth/register", json={"name": "Aryan", "business": "Aryan Traders", "email": "aryan@gmail.com",
+                                                "password": "secret-pass", "category": "Fashion"})
+    assert r.status_code == 201, r.text
+    assert r.json()["user"]["email"] == "aryan@gmail.com"
+
+
+def test_register_saves_location_and_gstin(client):
+    r = client.post("/api/auth/register", json={"name": "Asha", "business": "Asha Traders", "email": "asharao77@gmail.com", "password": "secret-pass",
+                                                "location": "Bengaluru, Karnataka, India", "gstin": "27aapfu0939f1zv"})
+    assert r.status_code == 201, r.text
+    p = client.get("/api/business/profile").json()
+    assert p["location"]["text"] == "Bengaluru, Karnataka, India" and p["location"]["verified"] is False
+    assert p["gstin"] == "27AAPFU0939F1ZV"
+
+
+def test_register_with_bad_gstin_creates_nothing(client):
+    body = {"name": "Asha", "business": "Asha Traders", "email": "asharao78@gmail.com", "password": "secret-pass"}
+    r = client.post("/api/auth/register", json={**body, "gstin": "27ABCDE1234F1Z5"})
+    assert r.status_code == 422 and r.json()["error"]["code"] == "gstin_checksum"
+    assert client.post("/api/auth/register", json=body).status_code == 201  # the email wasn't used up

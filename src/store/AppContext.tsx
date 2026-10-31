@@ -46,7 +46,7 @@ interface AppActions {
   refreshMe: () => Promise<MeResponse | null>
   login: (email: string, password: string) => Promise<MeResponse>
   demoLogin: () => Promise<MeResponse>
-  register: (input: { name: string; business: string; email: string; password: string; category: string }) => Promise<MeResponse>
+  register: (input: RegisterInput) => Promise<MeResponse>
   logout: () => Promise<void>
   setMe: (me: MeResponse) => void
   loadDemoBusiness: (silent?: boolean) => Promise<void>
@@ -60,6 +60,10 @@ interface AppActions {
 }
 
 const AppContext = createContext<(AppState & AppActions & CommerceState) | null>(null)
+
+interface RegisterInput {
+  name: string; business: string; email: string; password: string; category: string; location: string; gstin?: string
+}
 
 const SIGNED_OUT: AuthState = { status: 'signed_out', loggedIn: false, onboarded: false, sellerName: '', storeName: '', email: '', plan: 'Growth Plan', emailVerified: false, isDemo: false }
 
@@ -185,7 +189,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return afterSignIn(m)
   }, [afterSignIn])
 
-  const register = useCallback(async (input: { name: string; business: string; email: string; password: string; category: string }) => {
+  const register = useCallback(async (input: RegisterInput) => {
     const m = await api<MeResponse>('/api/auth/register', { body: input })
     toast.success('Account created', { description: 'Let’s set up your business in under a minute.' })
     return afterSignIn(m)

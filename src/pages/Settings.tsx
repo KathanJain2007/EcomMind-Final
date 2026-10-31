@@ -217,7 +217,7 @@ export default function Settings() {
           <Card className="card-surface">
             <CardContent className="space-y-5 p-5">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Today's budget</h2>
+                <h2 className="text-sm font-bold">Today's budget</h2>
                 {draft && <StatusBadge label={draft.agentsPaused ? 'Paused' : 'Enforced'} tone={draft.agentsPaused ? 'danger' : 'success'} />}
               </div>
               <BudgetProgress label="Consumed today" value={consumed / 100} max={Math.max(1, budget / 100)} />
@@ -303,7 +303,7 @@ function BusinessProfileCard() {
                                 setGstin(fixed)
                                 setGstinError(undefined)
                               }}
-                              className="inline-flex items-center gap-1 rounded bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 text-xs font-medium text-indigo-400 hover:bg-indigo-500/25 transition-colors"
+                              className="inline-flex items-center gap-1 rounded bg-brand/10 border border-brand/30 px-2 py-0.5 text-xs font-medium text-brand-soft hover:bg-brand/20 transition-colors"
                             >
                               Fix check digit to &quot;{expectedCheck}&quot;
                             </button>

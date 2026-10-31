@@ -11,11 +11,11 @@ import { formatNum, formatPaise, shortDate, signedDelta } from '@/lib/format'
 import { ChartCard, ChartEmpty, ChartSkeleton, EmptyState, MetricCard, PageHeader, PanelError, ProductIcon } from '@/components/common'
 import { CountUp } from '@/components/CountUp'
 import { RangeTabs } from '@/components/charts'
-import { tooltipStyle, type DailyPoint, type Summary } from '@/lib/chartTheme'
+import { CHART_ANIMATE, tooltipStyle, type DailyPoint, type Summary } from '@/lib/chartTheme'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-const PIE_COLORS = ['#7965F2', '#22C55E', '#F59E0B', '#9A8BFF', '#5f8bff', '#EF4444']
+const PIE_COLORS = ['var(--chart-purple)', 'var(--chart-teal)', 'var(--chart-orange)', 'var(--chart-purple)', 'var(--chart-blue)', 'var(--chart-red)']
 
 interface ProductSales { sku: string; name: string; category: string; icon: string; units: number; orders: number; revenue: number; profit: number; marginPct: number | null }
 
@@ -88,14 +88,14 @@ export default function Analytics() {
                 <AreaChart data={series} margin={{ top: 8, right: 8, left: -4, bottom: 0 }}>
                   <defs>
                     <linearGradient id="an-rev" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#7965F2" stopOpacity={0.35} /><stop offset="100%" stopColor="#7965F2" stopOpacity={0} />
+                      <stop offset="0%" stopColor="var(--chart-purple)" stopOpacity={0.35} /><stop offset="100%" stopColor="var(--chart-purple)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={28} />
                   <YAxis tickLine={false} axisLine={false} tickFormatter={(v: number) => `₹${Math.round(v / 1000)}k`} width={52} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [formatPaise(v * 100), 'Revenue']} />
-                  <Area type="monotone" dataKey="revenueRs" name="Revenue" stroke="#9A8BFF" strokeWidth={2} fill="url(#an-rev)" />
+                  <Area isAnimationActive={CHART_ANIMATE} type="monotone" dataKey="revenueRs" name="Revenue" stroke="var(--chart-purple)" strokeWidth={2} fill="url(#an-rev)" />
                 </AreaChart>
               </ResponsiveContainer>
             ))}
@@ -111,8 +111,8 @@ export default function Analytics() {
                   <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={28} />
                   <YAxis tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => [formatNum(v), name]} />
-                  <Line type="monotone" dataKey="orders" name="Orders" stroke="#22C55E" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="units" name="Units" stroke="#9A8BFF" strokeWidth={1.25} strokeDasharray="4 3" dot={false} />
+                  <Line isAnimationActive={CHART_ANIMATE} type="monotone" dataKey="orders" name="Orders" stroke="var(--chart-teal)" strokeWidth={2} dot={false} />
+                  <Line isAnimationActive={CHART_ANIMATE} type="monotone" dataKey="units" name="Units" stroke="var(--chart-purple)" strokeWidth={1.25} strokeDasharray="4 3" dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             ))}
@@ -128,7 +128,7 @@ export default function Analytics() {
                   <XAxis dataKey="name" tickLine={false} axisLine={false} tickFormatter={(v: string) => v.split(' ')[0]} />
                   <YAxis tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${formatNum(v)} units`, 'Sold']} />
-                  <Bar dataKey="units" radius={[6, 6, 0, 0]} barSize={36}>
+                  <Bar isAnimationActive={CHART_ANIMATE} dataKey="units" radius={[6, 6, 0, 0]} barSize={36}>
                     {ps.map((p, i) => <Cell key={p.sku} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Bar>
                 </BarChart>
@@ -143,7 +143,7 @@ export default function Analytics() {
               <>
                 <ResponsiveContainer width="55%" height="100%">
                   <PieChart>
-                    <Pie data={cats} dataKey="revenue" nameKey="name" innerRadius="55%" outerRadius="85%" paddingAngle={3} strokeWidth={0}>
+                    <Pie isAnimationActive={CHART_ANIMATE} data={cats} dataKey="revenue" nameKey="name" innerRadius="55%" outerRadius="85%" paddingAngle={3} strokeWidth={0}>
                       {cats.map((c, i) => <Cell key={c.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                     </Pie>
                     <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [formatPaise(v), 'Revenue']} />

@@ -19,6 +19,9 @@ import { AiProcurementSelector, PurchaseHistory, SupplierScores } from '@/compon
 
 interface RfqDraft { supplierId: string; sku: string; quantity: string; target: string; location: string; days: string }
 
+/** Imported quotes often leave stock out, which is stored as 0: that means "ask", not "sold out". */
+const availability = (q: { available: number; imported?: boolean }) => (q.imported && !q.available ? 'On request' : formatNum(q.available))
+
 export default function SupplierMarketplace() {
   const { demoLoaded, loadDemoBusiness, business } = useApp()
   const store = useDataStore()
@@ -188,7 +191,7 @@ export default function SupplierMarketplace() {
                     {s.quotes.map((q) => (
                       <div key={q.id} className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">{productName(q.sku)}</span>
-                        <span className="tabular">{formatNum(q.available)} units · {formatPaise(q.unitPrice)}</span>
+                        <span className="tabular">{availability(q)}{q.imported && !q.available ? '' : ' units'} · {formatPaise(q.unitPrice)}</span>
                       </div>
                     ))}
                   </div>
@@ -205,7 +208,7 @@ export default function SupplierMarketplace() {
       <div className="card-surface overflow-x-auto">
         <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
           <FileText className="h-4 w-4 text-brand-soft" aria-hidden />
-          <h2 className="text-sm font-semibold">Quotation comparison</h2>
+          <h2 className="text-sm font-bold">Quotation comparison</h2>
           <span className="text-xs text-muted-foreground">· {quotes.length} quotes{skuFilter !== 'All' ? ` for ${productName(skuFilter)}` : ''}</span>
         </div>
         <Table>
@@ -227,7 +230,7 @@ export default function SupplierMarketplace() {
                   <TableCell className="whitespace-nowrap text-muted-foreground">{productName(q.sku)}</TableCell>
                   <TableCell className={cx('tabular font-semibold', best && 'text-success')}>{formatPaise(q.unitPrice)}{best && <span className="ml-1 text-[10px] font-medium">best</span>}</TableCell>
                   <TableCell className="tabular">{q.moq}</TableCell>
-                  <TableCell className="tabular">{formatNum(q.available)}</TableCell>
+                  <TableCell className="tabular">{availability(q)}</TableCell>
                   <TableCell className="tabular">{q.deliveryDays} days</TableCell>
                   <TableCell className="tabular">★ {s.rating}</TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">{new Date(q.validTill).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</TableCell>

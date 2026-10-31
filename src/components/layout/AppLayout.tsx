@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
 import { Toaster } from 'sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppSidebar } from './AppSidebar'
@@ -8,23 +8,27 @@ import { cx } from '@/lib/format'
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false)
+  // First segment only: /negotiations/:id must not remount the page on every switch.
+  const section = useLocation().pathname.split('/')[1]
   return (
     <TooltipProvider>
-      <div className="min-h-dvh bg-background">
+      <div className="min-h-dvh">
         <AppSidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
-        <div className={cx('flex min-h-dvh flex-col transition-[margin] duration-200', collapsed ? 'lg:pl-[68px]' : 'lg:pl-64')}>
+        <div className={cx('flex min-h-dvh flex-col transition-[margin] duration-200', collapsed ? 'lg:pl-[84px]' : 'lg:pl-[272px]')}>
           <AppHeader />
           <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 md:px-6">
-            <Outlet />
+            <div key={section} className="page-enter">
+              <Outlet />
+            </div>
           </main>
-          <footer className="border-t border-border px-6 py-4 text-center text-xs text-muted-foreground">
+          <footer className="px-6 py-4 text-center text-xs text-muted-foreground">
             EcomMind – Your Business. Your Agents. Your Autonomous Economy. · All payments on this demo are simulated.
           </footer>
         </div>
         <Toaster
           position="bottom-right"
           toastOptions={{
-            style: { background: '#151E33', border: '1px solid #27334D', color: '#F8FAFC' },
+            style: { background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--popover-foreground))' },
           }}
         />
       </div>

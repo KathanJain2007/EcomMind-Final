@@ -8,7 +8,7 @@ import { api, ApiError, newIdempotencyKey, type ApiTxn, type Paged } from '@/lib
 import { cx, formatDateTime, formatPaise } from '@/lib/format'
 import { ChartCard, ChartEmpty, ChartSkeleton, MetricCard, PageHeader, PanelError, StatusBadge } from '@/components/common'
 import { CountUp } from '@/components/CountUp'
-import { tooltipStyle } from '@/lib/chartTheme'
+import { CHART_ANIMATE, tooltipStyle } from '@/lib/chartTheme'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -91,8 +91,8 @@ export default function Wallet() {
                   <XAxis dataKey="agent" tickLine={false} axisLine={false} tickFormatter={(v: string) => v.split(' ')[0]} />
                   <YAxis tickLine={false} axisLine={false} tickFormatter={(v: number) => `₹${v}`} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [money(v * 100), 'Spent']} />
-                  <Bar dataKey="rs" radius={[6, 6, 0, 0]} barSize={38}>
-                    {(o?.byAgent ?? []).map((_, i) => <Cell key={i} fill={['#7965F2', '#22C55E', '#F59E0B', '#9A8BFF'][i % 4]} />)}
+                  <Bar isAnimationActive={CHART_ANIMATE} dataKey="rs" radius={[6, 6, 0, 0]} barSize={38}>
+                    {(o?.byAgent ?? []).map((_, i) => <Cell key={i} fill={['var(--chart-purple)', 'var(--chart-teal)', 'var(--chart-orange)', 'var(--chart-purple)'][i % 4]} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -110,7 +110,7 @@ export default function Wallet() {
                   <XAxis dataKey="label" tickLine={false} axisLine={false} />
                   <YAxis tickLine={false} axisLine={false} tickFormatter={(v: number) => `₹${v}`} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [money(v * 100), 'Spent']} />
-                  <Bar dataKey="amount" radius={[6, 6, 0, 0]} barSize={26} fill="#7965F2" />
+                  <Bar isAnimationActive={CHART_ANIMATE} dataKey="amount" radius={[6, 6, 0, 0]} barSize={26} fill="var(--chart-purple)" />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -120,7 +120,7 @@ export default function Wallet() {
 
       <div className="card-surface overflow-x-auto">
         <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-          <h2 className="text-sm font-semibold">Recent transactions</h2>
+          <h2 className="text-sm font-bold">Recent transactions</h2>
           <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate('/activity?tab=transactions')}>
             View all {txns.data ? `${txns.data.total} ` : ''}in Agent Activity
           </Button>

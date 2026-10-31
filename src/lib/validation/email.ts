@@ -20,7 +20,7 @@ const LOCAL_ATOM = "[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+"
 const GENERAL_RE = new RegExp(
   `^${LOCAL_ATOM}(?:\\.${LOCAL_ATOM})*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z]{2,63}$`,
 )
-const GMAIL_USER_RE = /^(?=.{6,30}$)[a-z0-9]+(?:\.[a-z0-9]+)*$/
+const GMAIL_USER_RE = /^(?=.{1,30}$)[a-z0-9]+(?:\.[a-z0-9]+)*$/
 const GMAIL_TAG_RE = /^[a-z0-9._-]{1,40}$/
 
 const fail = (code: EmailErrorCode): EmailCheck => ({ ok: false, code, message: EMAIL_MESSAGES[code] })

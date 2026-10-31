@@ -15,7 +15,7 @@ import { ActivityTimeline } from '@/components/ActivityTimeline'
 import { ApprovalsPanel, MandatesPanel } from '@/components/activity/AutonomyPanels'
 import { ReportsManager } from '@/components/ReportsManager'
 import { CountUp } from '@/components/CountUp'
-import { tooltipStyle } from '@/lib/chartTheme'
+import { CHART_ANIMATE, tooltipStyle } from '@/lib/chartTheme'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -185,7 +185,7 @@ export default function Activity() {
           <button key={t.id} role="tab" aria-selected={tab === t.id} aria-controls={`panel-${t.id}`} id={`tab-${t.id}`} onClick={() => setTab(t.id)}
             className={cx('flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors', tab === t.id ? 'bg-brand text-white' : 'text-muted-foreground hover:bg-secondary hover:text-foreground')}>
             <t.icon className="h-3.5 w-3.5" aria-hidden /> {t.label}
-            {t.id === 'approvals' && pendingApprovals > 0 && <span className="rounded-full bg-warning px-1.5 text-[10px] font-bold text-black">{pendingApprovals}</span>}
+            {t.id === 'approvals' && pendingApprovals > 0 && <span className="rounded-full bg-warning px-1.5 text-[10px] font-bold text-white">{pendingApprovals}</span>}
           </button>
         ))}
       </div>
@@ -234,7 +234,7 @@ function OverviewTab({ onOpen }: { onOpen: (t: TabId) => void }) {
                   <XAxis dataKey="short" tickLine={false} axisLine={false} />
                   <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number, _n, item) => [`${v} calls · ${money(item.payload.spend)}`, item.payload.agent]} labelFormatter={() => ''} />
-                  <Bar dataKey="calls" name="Calls" radius={[6, 6, 0, 0]} barSize={36} fill="#7965F2" />
+                  <Bar isAnimationActive={CHART_ANIMATE} dataKey="calls" name="Calls" radius={[6, 6, 0, 0]} barSize={36} fill="var(--chart-purple)" />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -243,7 +243,7 @@ function OverviewTab({ onOpen }: { onOpen: (t: TabId) => void }) {
         <Card className="card-surface xl:col-span-2">
           <CardContent className="p-5">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Recent activity</h2>
+              <h2 className="text-sm font-bold">Recent activity</h2>
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => onOpen('log')}>Full log</Button>
             </div>
             <ActivityTimeline events={o?.recent ?? []} />
@@ -439,7 +439,7 @@ function LogTab() {
           <TableBody>
             <TableState cols={6} loading={data.loading} error={data.error} empty={!!data.data && data.data.items.length === 0} reload={data.reload} emptyText="No events match these filters." />
             {!data.loading && (data.data?.items ?? []).map((e) => (
-              <TableRow key={e.id} className="cursor-pointer border-border hover:bg-secondary/50" onClick={() => setSelected(e)}>
+              <TableRow key={e.id} className="cursor-pointer border-border hover:bg-accent/60" onClick={() => setSelected(e)}>
                 <TableCell className="tabular whitespace-nowrap text-muted-foreground">{formatDateTime(e.time)}</TableCell>
                 <TableCell className="whitespace-nowrap font-medium">{e.agent}</TableCell>
                 <TableCell className="max-w-64"><span className="line-clamp-1">{e.action}</span></TableCell>
@@ -518,7 +518,7 @@ function ReportsTab() {
           onDownload={() => downloadFile('/api/activity/events.csv', { days }, 'ecommind_agent_activity.csv')} />
       </div>
       <div className="pt-2">
-        <h2 className="mb-1 text-sm font-semibold">Report builder</h2>
+        <h2 className="mb-1 text-sm font-bold">Report builder</h2>
         <p className="mb-3 text-xs text-muted-foreground">Custom reports with CSV, Excel and PDF export, and a history of reports you’ve generated.</p>
         <ReportsManager />
       </div>

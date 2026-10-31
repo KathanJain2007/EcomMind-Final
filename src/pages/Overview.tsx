@@ -13,7 +13,7 @@ import { useApiQuery } from '@/store/DataStore'
 import type { ApiEvent, ApiMandate } from '@/lib/api'
 import { formatNum, formatPaise, greeting, shortDate, signedDelta } from '@/lib/format'
 import { RangeTabs } from '@/components/charts'
-import { tooltipStyle, type DailyPoint, type Summary } from '@/lib/chartTheme'
+import { CHART_ANIMATE, tooltipStyle, type DailyPoint, type Summary } from '@/lib/chartTheme'
 import { BudgetProgress, ChartCard, ChartEmpty, ChartSkeleton, EmptyState, MetricCard, PanelError, StatusBadge } from '@/components/common'
 import { CountUp } from '@/components/CountUp'
 import { ActivityTimeline } from '@/components/ActivityTimeline'
@@ -70,7 +70,7 @@ export default function Overview() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight md:text-2xl">{greeting()}, {auth.sellerName.split(' ')[0] || 'Seller'}</h1>
+          <h1 className="text-xl font-bold tracking-tight md:text-2xl">{greeting()}, {auth.sellerName.split(' ')[0] || 'Seller'}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Here is what EcomMind has been working on{business?.demoLoaded ? ' · showing the UrbanNest Living demo dataset' : ''}.
           </p>
@@ -95,8 +95,8 @@ export default function Overview() {
       </div>
 
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
-        <Card className="card-surface overflow-hidden">
-          <div className="h-0.5 w-full bg-gradient-to-r from-brand-soft via-brand to-[#5f8bff]" aria-hidden />
+        <Card className="card-surface hero-wash gap-0 overflow-hidden py-0">
+          <div className="h-1 w-full bg-gradient-to-r from-brand-soft via-brand to-[var(--chart-blue)]" aria-hidden />
           <CardContent className="p-5 md:p-6">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
               <div className="flex min-w-0 flex-1 items-start gap-4">
@@ -105,7 +105,7 @@ export default function Overview() {
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold tracking-tight">EcomMind Agent</h2>
+                    <h2 className="text-lg font-bold tracking-tight">EcomMind Agent</h2>
                     <StatusBadge label={agentStatus === 'active' ? 'Active' : 'Paused'} tone={agentStatus === 'active' ? 'success' : 'danger'} pulse={agentStatus === 'active'} />
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
@@ -208,18 +208,18 @@ export default function Overview() {
                 <AreaChart data={chartData} margin={{ top: 8, right: 4, left: -4, bottom: 0 }}>
                   <defs>
                     <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#7965F2" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#7965F2" stopOpacity={0} />
+                      <stop offset="0%" stopColor="var(--chart-purple)" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="var(--chart-purple)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={28} />
-                  <YAxis yAxisId="rev" tickLine={false} axisLine={false} tickFormatter={(v: number) => `₹${Math.round(v / 1000)}k`} width={52} label={{ value: 'Revenue', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 11, dx: 6 }} />
-                  <YAxis yAxisId="ord" orientation="right" tickLine={false} axisLine={false} width={40} label={{ value: 'Orders', angle: 90, position: 'insideRight', fill: '#94a3b8', fontSize: 11 }} />
+                  <YAxis yAxisId="rev" tickLine={false} axisLine={false} tickFormatter={(v: number) => `₹${Math.round(v / 1000)}k`} width={52} label={{ value: 'Revenue', angle: -90, position: 'insideLeft', fill: 'hsl(var(--muted-foreground))', fontSize: 11, dx: 6 }} />
+                  <YAxis yAxisId="ord" orientation="right" tickLine={false} axisLine={false} width={40} label={{ value: 'Orders', angle: 90, position: 'insideRight', fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => (name === 'Revenue' ? [formatPaise(v * 100), name] : [formatNum(v), name])} />
                   <Legend verticalAlign="top" height={24} iconType="plainline" wrapperStyle={{ fontSize: 11 }} />
-                  <Area yAxisId="rev" type="monotone" dataKey="revenueRs" name="Revenue" stroke="#9A8BFF" strokeWidth={2} fill="url(#rev)" isAnimationActive />
-                  <Area yAxisId="ord" type="monotone" dataKey="orders" name="Orders" stroke="#22C55E" strokeWidth={1.5} fill="transparent" strokeDasharray="4 3" />
+                  <Area isAnimationActive={CHART_ANIMATE} yAxisId="rev" type="monotone" dataKey="revenueRs" name="Revenue" stroke="var(--chart-purple)" strokeWidth={2.5} fill="url(#rev)" />
+                  <Area isAnimationActive={CHART_ANIMATE} yAxisId="ord" type="monotone" dataKey="orders" name="Orders" stroke="var(--chart-teal)" strokeWidth={1.5} fill="transparent" strokeDasharray="4 3" />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -233,12 +233,12 @@ export default function Overview() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stockData} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                  <XAxis type="number" tickLine={false} axisLine={false} label={{ value: 'Units in stock', position: 'insideBottom', offset: -2, fill: '#94a3b8', fontSize: 11 }} height={32} />
+                  <XAxis type="number" tickLine={false} axisLine={false} label={{ value: 'Units in stock', position: 'insideBottom', offset: -2, fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} height={32} />
                   <YAxis type="category" dataKey="short" tickLine={false} axisLine={false} width={92} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number, _n, item) => [`${formatNum(v)} units · ${item.payload.coverageDays ?? '—'}d cover · ${item.payload.status}`, item.payload.name]} labelFormatter={() => ''} />
-                  <Bar dataKey="stock" radius={[0, 6, 6, 0]} barSize={16}>
+                  <Bar isAnimationActive={CHART_ANIMATE} dataKey="stock" radius={[0, 6, 6, 0]} barSize={16}>
                     {stockData.map((d) => (
-                      <Cell key={d.sku} fill={d.status === 'Critical' || d.status === 'Out of Stock' ? '#EF4444' : d.status === 'Low Stock' ? '#F59E0B' : '#7965F2'} />
+                      <Cell key={d.sku} fill={d.status === 'Critical' || d.status === 'Out of Stock' ? 'var(--chart-red)' : d.status === 'Low Stock' ? 'var(--chart-orange)' : 'var(--chart-purple)'} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -251,7 +251,7 @@ export default function Overview() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
         <div className="space-y-3 xl:col-span-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">AI recommendations</h2>
+            <h2 className="text-sm font-bold">AI recommendations</h2>
             <Link to="/insights" className="flex items-center gap-1 text-xs font-medium text-brand-soft hover:underline">
               Open EcomMind Intelligence <ArrowRight className="h-3 w-3" aria-hidden />
             </Link>
@@ -284,7 +284,7 @@ export default function Overview() {
         <Card className="card-surface xl:col-span-2">
           <CardContent className="p-5">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Recent agent activity</h2>
+              <h2 className="text-sm font-bold">Recent agent activity</h2>
               <StatusBadge label={agentStatus === 'active' ? 'Active' : 'Paused'} tone={agentStatus === 'active' ? 'success' : 'danger'} pulse={agentStatus === 'active'} />
             </div>
             {events.error ? <PanelError message={events.error.message} onRetry={events.reload} /> : <ActivityTimeline events={events.data?.items ?? []} />}

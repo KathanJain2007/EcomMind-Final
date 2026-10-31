@@ -9,7 +9,7 @@ import { useApiQuery, useDataStore } from '@/store/DataStore'
 import { api, ApiError, type ApiProduct, type ApiSupplier } from '@/lib/api'
 import { cx, downloadCSV, formatNum, formatPaise, shortDate } from '@/lib/format'
 import { ChartEmpty, ChartSkeleton, EmptyState, PageHeader, PanelError, ProductIcon, StatusBadge, stockTone } from '@/components/common'
-import { tooltipStyle } from '@/lib/chartTheme'
+import { CHART_ANIMATE, tooltipStyle } from '@/lib/chartTheme'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -149,7 +149,7 @@ export default function Inventory() {
               const st = p.status
               const cov = p.coverageDays ?? '—'
               return (
-                <TableRow key={p.sku} className="cursor-pointer border-border hover:bg-secondary/50" onClick={() => setSelected(p)}>
+                <TableRow key={p.sku} className="cursor-pointer border-border hover:bg-accent/60" onClick={() => setSelected(p)}>
                   <TableCell>
                     <div className="flex items-center gap-2.5">
                       <ProductIcon icon={p.icon} />
@@ -157,10 +157,18 @@ export default function Inventory() {
                     </div>
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{p.sku}</TableCell>
-                  <TableCell className="text-muted-foreground">{p.category}</TableCell>
+                  <TableCell><span className="inline-flex rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground">{p.category}</span></TableCell>
                   <TableCell className="tabular">{formatINR(p.price)}</TableCell>
                   <TableCell className="tabular text-muted-foreground">{formatINR(p.cost)}</TableCell>
-                  <TableCell className="tabular font-medium">{formatNum(p.stock)}</TableCell>
+                  <TableCell className="tabular font-semibold">
+                    <div className="flex items-center gap-2.5">
+                      <span className="min-w-[2.25rem]">{formatNum(p.stock)}</span>
+                      {/* Days of cover, on a 30-day scale. */}
+                      <span className="h-1.5 w-14 overflow-hidden rounded-full bg-secondary" aria-hidden>
+                        <span className={cx('block h-full rounded-full', st === 'In Stock' ? 'bg-[var(--chart-teal)]' : st === 'Low Stock' ? 'bg-[var(--chart-orange)]' : 'bg-[var(--chart-red)]')} style={{ width: `${Math.min(100, (Number(cov) || 0) / 30 * 100)}%` }} />
+                      </span>
+                    </div>
+                  </TableCell>
                   <TableCell className="tabular">{p.avgDailySales}/day</TableCell>
                   <TableCell className="tabular">{cov} days</TableCell>
                   <TableCell><StatusBadge label={st} tone={stockTone(st)} pulse={st === 'Critical'} /></TableCell>
@@ -287,15 +295,15 @@ function ProductDrawer({ product, onClose }: { product: Product | null; onClose:
                   <AreaChart data={data} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}>
                     <defs>
                       <linearGradient id="pd-a" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#7965F2" stopOpacity={0.3} /><stop offset="100%" stopColor="#7965F2" stopOpacity={0} />
+                        <stop offset="0%" stopColor="var(--chart-purple)" stopOpacity={0.3} /><stop offset="100%" stopColor="var(--chart-purple)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                     <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={30} />
                     <YAxis tickLine={false} axisLine={false} />
                     <Tooltip contentStyle={tooltipStyle} />
-                    <Area type="monotone" dataKey="actual" name="Actual units" stroke="#9A8BFF" strokeWidth={2} fill="url(#pd-a)" />
-                    <Area type="monotone" dataKey="predicted" name="Forecast units" stroke="#22C55E" strokeWidth={1.5} strokeDasharray="5 4" fill="transparent" />
+                    <Area isAnimationActive={CHART_ANIMATE} type="monotone" dataKey="actual" name="Actual units" stroke="var(--chart-purple)" strokeWidth={2} fill="url(#pd-a)" />
+                    <Area isAnimationActive={CHART_ANIMATE} type="monotone" dataKey="predicted" name="Forecast units" stroke="var(--chart-teal)" strokeWidth={1.5} strokeDasharray="5 4" fill="transparent" />
                   </AreaChart>
                 </ResponsiveContainer>
               )}

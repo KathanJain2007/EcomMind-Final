@@ -43,6 +43,14 @@ export default function Onboarding() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me])
 
+  // Carry over the city and GSTIN entered at sign-up.
+  useEffect(() => {
+    api<{ gstin: string | null; location: { text: string | null } | null }>('/api/business/profile').then((p) => {
+      if (p.gstin) setForm((f) => (f.gstin ? f : { ...f, gstin: p.gstin! }))
+      if (p.location?.text) setLocation((l) => (l.text ? l : { ...l, text: p.location!.text! }))
+    }).catch(() => {})
+  }, [])
+
   const gstinOk = validateGstin(form.gstin).ok
   const canNext =
     step === 0 ? form.business.trim().length >= 2 && form.category !== '' && !locationProblem(location, verificationRequired) && gstinOk
@@ -120,7 +128,7 @@ export default function Onboarding() {
 
       {step === 0 && (
         <div className="space-y-4">
-          <h2 className="text-2xl font-semibold tracking-tight">Tell us about your business</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Tell us about your business</h2>
           <p className="text-sm text-muted-foreground">EcomMind uses this to tune forecasts and agent behaviour.</p>
           <div className="space-y-1.5 pt-2">
             <Label htmlFor="ob-business">Business name</Label>
@@ -174,7 +182,7 @@ export default function Onboarding() {
                         setForm({ ...form, gstin: fixed })
                         setErrors((x) => ({ ...x, gstin: undefined }))
                       }}
-                      className="inline-flex items-center gap-1 rounded bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 text-xs font-medium text-indigo-400 hover:bg-indigo-500/25 transition-colors"
+                      className="inline-flex items-center gap-1 rounded bg-brand/10 border border-brand/30 px-2 py-0.5 text-xs font-medium text-brand-soft hover:bg-brand/20 transition-colors"
                     >
                       Fix check digit to &quot;{expectedCheck}&quot;
                     </button>
@@ -192,7 +200,7 @@ export default function Onboarding() {
                         setForm({ ...form, gstin: fixed })
                         setErrors((x) => ({ ...x, gstin: undefined }))
                       }}
-                      className="inline-flex items-center gap-1 rounded bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 text-xs font-medium text-indigo-400 hover:bg-indigo-500/25 transition-colors"
+                      className="inline-flex items-center gap-1 rounded bg-brand/10 border border-brand/30 px-2 py-0.5 text-xs font-medium text-brand-soft hover:bg-brand/20 transition-colors"
                     >
                       Append check digit &quot;{expectedCheck}&quot;
                     </button>
@@ -220,7 +228,7 @@ export default function Onboarding() {
                     className={cx(
                       'inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-mono transition-colors border',
                       form.gstin === s.gstin
-                        ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 font-medium'
+                        ? 'border-success/50 bg-success/10 text-success font-medium'
                         : 'border-border/60 bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground'
                     )}
                   >
@@ -249,7 +257,7 @@ export default function Onboarding() {
 
       {step === 1 && (
         <div className="space-y-4">
-          <h2 className="text-2xl font-semibold tracking-tight">Where do you sell the most?</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Where do you sell the most?</h2>
           <p className="text-sm text-muted-foreground">Pick your primary sales channel — you can connect more later.</p>
           <div className="grid grid-cols-1 gap-2.5 pt-2 sm:grid-cols-2">
             {CHANNELS.map((c) => (
@@ -272,7 +280,7 @@ export default function Onboarding() {
 
       {step === 2 && (
         <div className="space-y-4">
-          <h2 className="text-2xl font-semibold tracking-tight">Upload your inventory</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Upload your inventory</h2>
           <p className="text-sm text-muted-foreground">Optional — it’s imported into your catalogue when you finish setup, using the same import as the Import Data page. Columns: sku, name, price, cost, stock (category and avg_daily_sales optional).</p>
           <label
             htmlFor="ob-file"

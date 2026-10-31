@@ -1,14 +1,15 @@
 """RFQ -> negotiation workflow.
 
-Supplier replies come only from suppliers whose agent auto-responds
-(`Supplier.auto_respond`). Their policy is deterministic and uses the
-supplier's private floor price from `supplier_quotes`:
+Supplier replies come from suppliers whose agent auto-responds
+(`Supplier.auto_respond`), which includes unverified and seller-imported ones.
+Their policy is deterministic and uses the floor price from `supplier_quotes`
+(an imported quote's floor is its listed price):
 
 * RFQ received  -> offer at the listed unit price (or decline if the SKU isn't
   in their catalogue).
 * Counter >= floor -> accept.  Counter < floor -> final offer at the floor.
 
-Suppliers that don't auto-respond leave the negotiation in
+Suppliers with auto-respond off leave the negotiation in
 "awaiting_supplier_response"; nothing is invented on their behalf.
 
 EcomMind's own counter (when the mandate allows automatic negotiation and the
@@ -23,7 +24,7 @@ from typing import Optional
 
 from datetime import date, datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..errors import ApiError
@@ -45,10 +46,12 @@ def _msg(db: Session, neg: Negotiation, sender: str, kind: str, text: str, price
     neg.updated_at = datetime.now(timezone.utc)
 
 
-def _quote(db: Session, supplier_id: str, sku: str) -> SupplierQuote | None:
-    # The supplier agent answers from its own network quote, never from a seller's imported one.
-    return db.scalar(select(SupplierQuote).where(SupplierQuote.supplier_id == supplier_id, SupplierQuote.sku == sku,
-                                                 SupplierQuote.business_id.is_(None)))
+def _quote(db: Session, business_id: int, supplier_id: str, sku: str) -> SupplierQuote | None:
+    # A supplier's own network quote wins; otherwise it answers from the quote this seller imported for it.
+    rows = db.scalars(select(SupplierQuote).where(SupplierQuote.supplier_id == supplier_id, SupplierQuote.sku == sku,
+                                                  or_(SupplierQuote.business_id.is_(None),
+                                                      SupplierQuote.business_id == business_id))).all()
+    return next((q for q in rows if q.business_id is None), rows[0] if rows else None)
 
 
 def supplier_receive_rfq(db: Session, neg: Negotiation, rfq: RFQ, supplier: Supplier) -> None:
@@ -56,19 +59,18 @@ def supplier_receive_rfq(db: Session, neg: Negotiation, rfq: RFQ, supplier: Supp
         neg.status = rfq.status = "awaiting_supplier_response"
         _msg(db, neg, "system", "info", f"RFQ delivered to {supplier.name}. Waiting for the supplier's response.")
         return
-    q = _quote(db, supplier.id, rfq.sku)
+    q = _quote(db, neg.business_id, supplier.id, rfq.sku)
     if not q:
         neg.status = rfq.status = "declined"
         _msg(db, neg, "supplier", "decline", f"We don't supply {rfq.product_name} ({rfq.sku}) at the moment.")
         return
-    if q.valid_till < date.today():
-        neg.status = rfq.status = "awaiting_supplier_response"
-        _msg(db, neg, "system", "info", "The supplier's price list has expired. Waiting for a fresh quote.")
-        return
     notes = []
+    if q.valid_till < date.today():
+        notes.append(f"Our listed price expired on {q.valid_till:%d %b %Y}; this offer re-confirms it.")
     if rfq.quantity < q.moq:
         notes.append(f"Minimum order is {q.moq} units.")
-    if rfq.quantity > q.available:
+    # An imported quote with no stock figure is stored as 0, which means "not stated", not "sold out".
+    if rfq.quantity > q.available and (q.available or q.business_id is None):
         notes.append(f"Only {q.available:,} units are available right now.")
     if q.delivery_days > rfq.delivery_days:
         notes.append(f"Our delivery time is {q.delivery_days} days, longer than the {rfq.delivery_days} days requested.")
@@ -85,7 +87,7 @@ def supplier_receive_counter(db: Session, neg: Negotiation, supplier: Supplier, 
     if not supplier.auto_respond:
         neg.status = "awaiting_supplier_response"
         return
-    q = _quote(db, supplier.id, neg.sku)
+    q = _quote(db, neg.business_id, supplier.id, neg.sku)
     floor = q.floor_price if q else neg.latest_supplier_price or price
     if price >= floor:
         neg.latest_supplier_price = price
@@ -96,6 +98,23 @@ def supplier_receive_counter(db: Session, neg: Negotiation, supplier: Supplier, 
         neg.status = "offer_received"
         _msg(db, neg, "supplier", "offer",
              f"Final offer: {inr(floor)} per unit for {neg.quantity} units. This is our floor for this order.", floor)
+
+
+def answer_waiting_negotiations(db: Session) -> int:
+    """Reply to negotiations left waiting on a supplier whose agent now auto-responds."""
+    answered = 0
+    for neg in db.scalars(select(Negotiation).where(Negotiation.status == "awaiting_supplier_response")).all():
+        supplier = db.get(Supplier, neg.supplier_id)
+        rfq = db.get(RFQ, neg.rfq_id)
+        if not supplier or not supplier.auto_respond or not rfq:
+            continue
+        if neg.latest_buyer_price:
+            supplier_receive_counter(db, neg, supplier, neg.latest_buyer_price)
+        else:
+            supplier_receive_rfq(db, neg, rfq, supplier)
+            ecommind_auto_counter(db, neg, rfq, supplier)
+        answered += 1
+    return answered
 
 
 def ecommind_auto_counter(db: Session, neg: Negotiation, rfq: RFQ, supplier: Supplier) -> None:

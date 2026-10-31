@@ -112,17 +112,18 @@ def test_returns_and_supplier_quotes(seller):
     assert b["created"] == 2
     sups = seller.get("/api/suppliers").json()["suppliers"]
     own = next(s for s in sups if s["name"] == "Local Traders")
-    assert own["imported"] and own["autoRespond"] is False  # no invented replies from an imported supplier
+    assert own["imported"] and own["autoRespond"] is True and own["verified"] is False
     quotes = seller.get("/api/supplier-quotes?sku=EAR-001").json()["quotes"]
     assert {q["unitPrice"] for q in quotes if q["imported"]} == {17600, 17000}
     # the network supplier's agent still negotiates from its own quote, not the imported one
     neg = seller.post("/api/rfqs", json={"supplierId": "SUP-B", "sku": "EAR-001", "quantity": 300, "deliveryLocation": "Jaipur",
                                          "deliveryDays": 5}, headers={"Idempotency-Key": "imp-test-rfq-1"}).json()["negotiation"]
     assert neg["latestSupplierPrice"] == 19500
-    # an RFQ to the imported supplier waits for a real reply
+    # an unverified, imported supplier answers from the quote the seller imported
     neg = seller.post("/api/rfqs", json={"supplierId": own["id"], "sku": "EAR-001", "quantity": 50, "deliveryLocation": "Jaipur",
                                          "deliveryDays": 7}, headers={"Idempotency-Key": "imp-test-rfq-2"}).json()["negotiation"]
-    assert neg["status"] == "awaiting_supplier_response"
+    assert neg["status"] == "offer_received" and neg["latestSupplierPrice"] == 17000
+    assert not any("Only 0" in m["text"] for m in neg["messages"])  # blank stock isn't reported as zero
 
 
 def test_xlsx_workbook_with_several_sheets(client):

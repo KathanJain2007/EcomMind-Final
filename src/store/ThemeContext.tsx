@@ -23,10 +23,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
-    return 'dark' // default to existing dark look
+    return 'light'
   })
 
-  const [effectiveTheme, setEffectiveTheme] = useState<'dark' | 'light'>('dark')
+  const [effectiveTheme, setEffectiveTheme] = useState<'dark' | 'light'>('light')
 
   useEffect(() => {
     const root = document.documentElement

@@ -175,7 +175,7 @@ function EscrowDetail({ id }: { id: string }) {
                 <ShieldCheck className="h-5 w-5" aria-hidden />
               </div>
               <div>
-                <h2 className="text-sm font-semibold">Escrow order <span className="font-mono text-xs text-muted-foreground">{e.id}</span></h2>
+                <h2 className="text-sm font-bold">Escrow order <span className="font-mono text-xs text-muted-foreground">{e.id}</span></h2>
                 <p className="text-xs text-muted-foreground">Opened {formatDateTime(e.createdAt)}</p>
               </div>
             </div>
@@ -259,7 +259,7 @@ function EscrowDetail({ id }: { id: string }) {
 
       <Card className="card-surface h-fit">
         <CardContent className="p-5">
-          <h2 className="mb-4 text-sm font-semibold">Escrow process</h2>
+          <h2 className="mb-4 text-sm font-bold">Escrow process</h2>
           <ol>
             {steps.map((s, i) => {
               const state = closed ? (s.at ? 'done' : 'todo') : i <= reached ? 'done' : i === reached + 1 ? 'next' : 'todo'

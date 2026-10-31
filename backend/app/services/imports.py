@@ -444,7 +444,7 @@ def _supplier_for(ctx: Ctx, name: str, location: Optional[str]) -> Supplier:
         if low == full or low in parts or low == s.id.lower():
             return s
     s = Supplier(id=new_id("SUP"), name=name[:120], agent_id="manual", location=(location or "")[:80], rating=0.0, reviews=0,
-                 verified=False, auto_respond=False, business_id=ctx.business_id)
+                 verified=False, auto_respond=True, business_id=ctx.business_id)
     ctx.db.add(s)
     ctx.db.flush()
     return s

@@ -42,7 +42,7 @@ def quote_out(q: SupplierQuote) -> dict:
 def supplier_out(s: Supplier, quotes: list[SupplierQuote]) -> dict:
     return {"id": s.id, "name": s.name, "agentId": s.agent_id, "location": s.location, "rating": s.rating,
             "reviews": s.reviews, "verified": s.verified, "autoRespond": s.auto_respond, "imported": s.business_id is not None,
-            "catalogue": [q.sku for q in quotes], "quotes": [quote_out(q) for q in quotes]}
+            "catalogue": list(dict.fromkeys(q.sku for q in quotes)), "quotes": [quote_out(q) for q in quotes]}
 
 
 def _visible(model, biz: Business):

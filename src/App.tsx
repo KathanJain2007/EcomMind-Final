@@ -1,4 +1,5 @@
 import { lazy, Suspense, type ReactNode } from 'react'
+import { MotionConfig } from 'framer-motion'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { Loader2 } from 'lucide-react'
 import { ThemeProvider } from '@/store/ThemeContext'
@@ -39,7 +40,7 @@ function PageLoader() {
 
 function SessionLoader() {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-background text-sm text-muted-foreground" role="status">
+    <div className="flex min-h-dvh items-center justify-center text-sm text-muted-foreground" role="status">
       <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> Checking your session…
     </div>
   )
@@ -94,6 +95,7 @@ function AppRoutes() {
 
 export default function App() {
   return (
+    <MotionConfig reducedMotion="user">
     <ThemeProvider>
       <DataProvider>
         <AppProvider>
@@ -101,5 +103,6 @@ export default function App() {
         </AppProvider>
       </DataProvider>
     </ThemeProvider>
+    </MotionConfig>
   )
 }

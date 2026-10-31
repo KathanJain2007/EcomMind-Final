@@ -187,7 +187,7 @@ export default function ImportData() {
       {results.length > 0 && (
         <Card className="card-surface mb-5">
           <CardContent className="p-0">
-            <div className="border-b border-border px-5 py-3.5"><h2 className="text-sm font-semibold">Import results</h2></div>
+            <div className="border-b border-border px-5 py-3.5"><h2 className="text-sm font-bold">Import results</h2></div>
             <ul className="divide-y divide-border">
               {results.map((b) => (
                 <li key={`${b.id}-${b.duplicate}`} className="px-5 py-3.5">
@@ -225,7 +225,7 @@ export default function ImportData() {
       <Card className="card-surface mb-5">
         <CardContent className="p-0">
           <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-            <h2 className="text-sm font-semibold">Import history</h2>
+            <h2 className="text-sm font-bold">Import history</h2>
             <span className="text-xs text-muted-foreground">Stored with your account</span>
           </div>
           <div className="overflow-x-auto">
@@ -267,7 +267,7 @@ export default function ImportData() {
               <Check className="h-5.5 w-5.5" aria-hidden />
             </div>
             <div>
-              <h2 className="text-base font-semibold">{importedCount} of {SLOTS.length} datasets imported</h2>
+              <h2 className="text-base font-bold">{importedCount} of {SLOTS.length} datasets imported</h2>
               <p className="text-xs text-muted-foreground">Analytics, inventory, return risk and supplier recommendations read your imported data straight away.</p>
             </div>
           </div>

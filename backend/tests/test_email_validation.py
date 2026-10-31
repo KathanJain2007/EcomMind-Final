@@ -23,7 +23,6 @@ def test_canonical_form_ignores_dots_and_tags():
 @pytest.mark.parametrize("raw", [
     "", "   ", "plainaddress", "@gmail.com", "asharao@", "asha rao@gmail.com", "asharao@@gmail.com",
     "asharao@gmail", "asharao@gmail..com", ".asharao@gmail.com", "asharao.@gmail.com", "asha..rao@gmail.com",
-    "abc@gmail.com",                       # Gmail usernames are 6-30 characters
     "a" * 31 + "@gmail.com",
     "asha_rao@gmail.com",                  # underscores aren't allowed in Gmail usernames
     "asharao@gmail.com.evil.com",          # actually a different domain, but malformed for us? -> unsupported (see below)
@@ -52,3 +51,8 @@ def test_unsupported_domain(raw):
 def test_non_string_input():
     assert validate_gmail(None).code == INVALID_FORMAT
     assert validate_gmail(123).code == INVALID_FORMAT
+
+
+def test_short_usernames_are_valid():
+    for addr in ("aryan@gmail.com", "aryan123@gmail.com", "abc@gmail.com"):
+        assert validate_gmail(addr).ok, addr

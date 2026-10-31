@@ -287,6 +287,7 @@ export interface ApiEvent {
 }
 
 export interface ApiSupplierQuote {
+  imported?: boolean
   id: string
   supplierId: string
   sku: string

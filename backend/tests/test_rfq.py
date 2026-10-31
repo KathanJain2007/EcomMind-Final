@@ -85,3 +85,37 @@ def test_other_sellers_cannot_see_negotiation(seller):
 def test_timestamps_carry_utc_offset(seller):
     neg = rfq(seller).json()["negotiation"]
     assert neg["createdAt"].endswith("+00:00") and neg["messages"][0]["createdAt"].endswith("+00:00")
+
+
+def test_unverified_network_supplier_replies(seller):
+    neg = rfq(seller, supplierId="SUP-C", targetUnitPrice=None).json()["negotiation"]
+    assert neg["status"] == "offer_received" and neg["latestSupplierPrice"] == 18900
+    assert neg["messages"][-1]["sender"] == "supplier"
+
+
+def test_expired_price_list_still_gets_a_reply(seller):
+    from datetime import date, timedelta
+
+    from app import db as dbmod
+    from app.models import SupplierQuote
+    with dbmod.SessionLocal() as s:
+        s.get(SupplierQuote, "Q-103").valid_till = date.today() - timedelta(days=2)
+        s.commit()
+    neg = rfq(seller, supplierId="SUP-C", targetUnitPrice=None).json()["negotiation"]
+    assert neg["status"] == "offer_received" and "expired" in neg["messages"][-1]["text"]
+
+
+def test_waiting_negotiations_are_answered_once_supplier_responds(seller):
+    from app import db as dbmod
+    from app.models import Supplier
+    from app.services.negotiation import answer_waiting_negotiations
+    with dbmod.SessionLocal() as s:
+        s.get(Supplier, "SUP-A").auto_respond = False
+        s.commit()
+    neg = rfq(seller, supplierId="SUP-A", targetUnitPrice=None).json()["negotiation"]
+    assert neg["status"] == "awaiting_supplier_response"
+    with dbmod.SessionLocal() as s:
+        s.get(Supplier, "SUP-A").auto_respond = True
+        assert answer_waiting_negotiations(s) == 1
+        s.commit()
+    assert seller.get(f"/api/negotiations/{neg['id']}").json()["status"] == "offer_received"
