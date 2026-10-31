@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ArrowLeft, ArrowRight, Check, Upload } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Loader2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { useApp } from '@/store/AppContext'
 import { AuthShell } from './AuthShell'
@@ -8,6 +8,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { LocationAutocomplete } from '@/components/LocationAutocomplete'
+import { locationProblem, type PlaceValue } from '@/lib/place'
+import { api, ApiError, type MeResponse } from '@/lib/api'
+import { gstinLiveError, normalizeGstin, validateGstin } from '@/lib/validation/gstin'
 import { cx } from '@/lib/format'
 
 const STEPS = ['Business', 'Channel', 'Inventory']
@@ -16,20 +20,65 @@ const CHANNELS = ['Amazon', 'Flipkart', 'Meesho', 'Shopify', 'Instagram']
 const CURRENCIES = ['INR (₹)', 'USD ($)']
 
 export default function Onboarding() {
-  const { completeOnboarding, auth } = useApp()
+  const { auth, me, setMe } = useApp()
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
-  const [form, setForm] = useState({ business: auth.storeName || '', category: '', channel: '', currency: 'INR (₹)', location: '', fileName: '' })
+  const [saving, setSaving] = useState(false)
+  const [verificationRequired, setVerificationRequired] = useState(false)
+  const [form, setForm] = useState({ business: auth.storeName || '', category: '', channel: '', currency: 'INR (₹)', gstin: '', fileName: '' })
+  const [location, setLocation] = useState<PlaceValue>({ text: '', placeId: null, sessionToken: null, verified: false })
+  const [errors, setErrors] = useState<{ gstin?: string; location?: string; business?: string; form?: string }>({})
 
+  useEffect(() => {
+    api<{ verificationRequired: boolean }>('/api/places/config').then((c) => setVerificationRequired(c.verificationRequired)).catch(() => {})
+  }, [])
+  useEffect(() => {
+    if (me?.business?.category && !form.category && CATEGORIES.includes(me.business.category)) setForm((f) => ({ ...f, category: me.business!.category! }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me])
+
+  const gstinOk = validateGstin(form.gstin).ok
   const canNext =
-    step === 0 ? form.business.trim().length >= 2 && form.category !== '' && form.location.trim().length >= 2
+    step === 0 ? form.business.trim().length >= 2 && form.category !== '' && !locationProblem(location, verificationRequired) && gstinOk
     : step === 1 ? form.channel !== ''
     : true
 
-  const finish = () => {
-    completeOnboarding(form.business)
-    if (form.fileName) toast.success('Inventory file queued', { description: `${form.fileName} will be validated in the Import Center.` })
-    navigate('/')
+  const next = () => {
+    if (step === 0) {
+      const g = validateGstin(form.gstin)
+      const l = locationProblem(location, verificationRequired)
+      setErrors({ gstin: g.ok ? undefined : g.message, location: l })
+      if (!g.ok || l) return
+    }
+    setStep(step + 1)
+  }
+
+  const finish = async () => {
+    setSaving(true)
+    setErrors({})
+    try {
+      const res = await api<MeResponse>('/api/business/onboarding', {
+        method: 'PUT',
+        body: {
+          business: form.business.trim(), category: form.category, currency: form.currency, channel: form.channel,
+          gstin: normalizeGstin(form.gstin),
+          location: { text: location.text.trim(), placeId: location.placeId, sessionToken: location.sessionToken },
+        },
+      })
+      setMe(res)
+      toast.success('Setup complete', { description: 'Your autonomous economy is ready. Load the demo business to explore.' })
+      if (form.fileName) toast.info('Inventory file not uploaded yet', { description: `Open Import Data to upload ${form.fileName}.` })
+      navigate('/')
+    } catch (e) {
+      if (e instanceof ApiError && (e.field === 'gstin' || e.field === 'location')) {
+        setErrors({ [e.field]: e.message })
+        setStep(0)
+      } else {
+        setErrors({ form: e instanceof ApiError ? e.message : 'Couldn’t save your business details. Try again.' })
+      }
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -66,17 +115,42 @@ export default function Onboarding() {
               <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="ob-gstin">Business GSTIN</Label>
+            <Input
+              id="ob-gstin"
+              placeholder="Enter your 15-character GSTIN"
+              value={form.gstin}
+              maxLength={20}
+              autoComplete="off"
+              spellCheck={false}
+              className="font-mono uppercase tracking-wide"
+              onChange={(e) => {
+                const v = normalizeGstin(e.target.value)
+                setForm({ ...form, gstin: v })
+                setErrors((x) => ({ ...x, gstin: gstinLiveError(v) }))
+              }}
+              onBlur={() => { if (!form.gstin) return; const r = validateGstin(form.gstin); setErrors((x) => ({ ...x, gstin: r.ok ? undefined : r.message })) }}
+              aria-invalid={!!errors.gstin}
+              aria-describedby="ob-gstin-help"
+            />
+            <p id="ob-gstin-help" className={cx('text-xs', errors.gstin ? 'text-danger' : gstinOk ? 'text-success' : 'text-muted-foreground')}>
+              {errors.gstin ?? (gstinOk
+                ? 'Format looks valid. EcomMind checks the format only, not registration with the GST portal.'
+                : 'The GST identification number registered for your business, e.g. 27AAPFU0939F1ZV.')}
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_9rem]">
+            <div className="space-y-1.5">
+              <Label htmlFor="ob-location">Business location</Label>
+              <LocationAutocomplete id="ob-location" value={location} onChange={(v) => { setLocation(v); setErrors((x) => ({ ...x, location: undefined })) }} error={errors.location} />
+            </div>
             <div className="space-y-1.5">
               <Label>Currency</Label>
               <Select value={form.currency} onValueChange={(v) => setForm({ ...form, currency: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
               </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="ob-location">Business location</Label>
-              <Input id="ob-location" placeholder="Jaipur, Rajasthan" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
             </div>
           </div>
         </div>
@@ -121,17 +195,19 @@ export default function Onboarding() {
         </div>
       )}
 
+      {errors.form && <p role="alert" className="mt-4 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">{errors.form}</p>}
+
       <div className="mt-8 flex items-center justify-between">
-        <Button variant="ghost" onClick={() => (step === 0 ? navigate('/login') : setStep(step - 1))}>
+        <Button variant="ghost" onClick={() => (step === 0 ? navigate('/login') : setStep(step - 1))} disabled={saving}>
           <ArrowLeft className="h-4 w-4" aria-hidden /> Back
         </Button>
         {step < STEPS.length - 1 ? (
-          <Button className="btn-glow border-0 text-white" disabled={!canNext} onClick={() => setStep(step + 1)}>
+          <Button className="btn-glow border-0 text-white" disabled={!canNext} onClick={next}>
             Continue <ArrowRight className="h-4 w-4" aria-hidden />
           </Button>
         ) : (
-          <Button className="btn-glow border-0 text-white" onClick={finish}>
-            Finish setup <Check className="h-4 w-4" aria-hidden />
+          <Button className="btn-glow border-0 text-white" onClick={finish} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <>Finish setup <Check className="h-4 w-4" aria-hidden /></>}
           </Button>
         )}
       </div>
