@@ -6,9 +6,10 @@
  * Backend-backed so far: product prices and price history (/api/products/{sku}/price,
  * /api/price-history), pricing rules (stored in the seller's mandate), the
  * catalogue, activity logging and the emergency kill switch. Marketplace
- * listings/orders, festivals, supplier scoring, the approval queue and report
- * history still run in the browser on seeded demo data and move to the backend
- * in later phases.
+ * listings, orders and stock movements live entirely on the backend and are read
+ * by the Selling page directly. Festivals, supplier scoring, the approval queue
+ * and report history still run in the browser on seeded demo data and move to
+ * the backend in later phases.
  */
 import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
@@ -16,12 +17,10 @@ import { type ActivityEvent, type Product } from '@/data/demo'
 import { api, ApiError, type ApiMandate, type ApiPriceApprovalNeeded, type ApiPriceChange } from '@/lib/api'
 import { useApiQuery, useDataStore } from '@/store/DataStore'
 import {
-  type MarketplaceConfig, type MarketplaceListing, type MarketplaceOrder,
-  type InventoryMovement, type PricingRuleConfig, type PriceChangeLog, type FestivalEvent,
+  type PricingRuleConfig, type PriceChangeLog, type FestivalEvent,
   type SupplierPurchaseRecord, type SupplierDeliveryRecord, type SupplierRelationshipRecord,
   type AutonomyLevel, type SignedMandate, type ApprovalQueueItem, type GeneratedReportRecord,
-  INITIAL_MARKETPLACES, DEFAULT_PRICING_RULES, INITIAL_SIGNED_MANDATE,
-  seedMarketplaceListings, seedMarketplaceOrders,
+  DEFAULT_PRICING_RULES, INITIAL_SIGNED_MANDATE,
   seedFestivalCalendar, seedSupplierHistory, seedApprovalQueue, seedReportHistory,
   calculateSupplierScore,
 } from '@/data/models'
@@ -46,10 +45,6 @@ const toPaise = (rupee: number) => Math.round(rupee * 100)
 export function useCommerce({ auth, catalog, addActivity, pauseAgents, enabled }: CommerceDeps) {
   const store = useDataStore()
   // Enhanced Sub-Systems State
-  const [marketplaces, setMarketplaces] = useState<MarketplaceConfig[]>(INITIAL_MARKETPLACES)
-  const [marketplaceListings, setMarketplaceListings] = useState<MarketplaceListing[]>([])
-  const [marketplaceOrders, setMarketplaceOrders] = useState<MarketplaceOrder[]>([])
-  const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>([])
   // Pricing rules are the seller's mandate; price history is the backend's record of applied changes.
   const mandateQ = useApiQuery<{ mandate: ApiMandate }>(enabled ? '/api/mandate' : null, ['mandate'])
   const historyQ = useApiQuery<{ changes: ApiPriceChange[] }>(enabled ? '/api/price-history?limit=200' : null, ['products'])
@@ -97,9 +92,6 @@ export function useCommerce({ auth, catalog, addActivity, pauseAgents, enabled }
 
   /** Load the demo commerce data (called when the demo business loads). */
   const seedCommerceDemo = useCallback(() => {
-    setMarketplaces(INITIAL_MARKETPLACES)
-    setMarketplaceListings(seedMarketplaceListings())
-    setMarketplaceOrders(seedMarketplaceOrders())
     setFestivalEvents(seedFestivalCalendar())
     const sup = seedSupplierHistory()
     setSupplierPurchases(sup.purchases)
@@ -112,137 +104,9 @@ export function useCommerce({ auth, catalog, addActivity, pauseAgents, enabled }
 
   /** Clear per-seller commerce data on sign-out. */
   const resetCommerce = useCallback(() => {
-    setMarketplaceListings([]); setMarketplaceOrders([]); setInventoryMovements([])
     setSupplierPurchases([]); setSupplierDeliveries([]); setSupplierRelationships({}); setApprovalQueue([])
     setSignedMandate(INITIAL_SIGNED_MANDATE)
   }, [])
-
-  // Feature 3: Multi-Marketplace selling & synchronization
-  const createMarketplaceListing = useCallback((listingData: Omit<MarketplaceListing, 'id' | 'lastSyncAt' | 'ordersCount' | 'unitsSold' | 'revenue'>) => {
-    const id = `LST-${listingData.marketplace.toUpperCase()}-${listingData.sku}-${Date.now().toString(36)}`
-    const newListing: MarketplaceListing = {
-      ...listingData,
-      id,
-      ordersCount: 0,
-      unitsSold: 0,
-      revenue: 0,
-      lastSyncAt: new Date().toISOString(),
-    }
-    setMarketplaceListings((prev) => [newListing, ...prev])
-    addActivity({
-      agent: 'Marketplace Integration Agent',
-      action: `Listed on ${listingData.marketplace.toUpperCase()}: ${listingData.title}`,
-      product: listingData.sku,
-      status: 'success',
-      detail: `Price ₹${listingData.price} · Available Stock: ${listingData.stock} units. ID: ${listingData.marketplaceListingId}`,
-    })
-    toast.success('Listing created', { description: `Product ${listingData.sku} live on ${listingData.marketplace.toUpperCase()}.` })
-  }, [addActivity])
-
-  const updateListingPriceAndStock = useCallback((id: string, price: number, stock: number) => {
-    setMarketplaceListings((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, price, stock, lastSyncAt: new Date().toISOString() } : l))
-    )
-    toast.success('Listing updated', { description: `Price set to ₹${price}, stock set to ${stock}.` })
-  }, [])
-
-  const toggleMarketplaceStatus = useCallback((id: string, newStatus: MarketplaceListing['status']) => {
-    setMarketplaceListings((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, status: newStatus, lastSyncAt: new Date().toISOString() } : l))
-    )
-    toast.info(`Listing status changed to ${newStatus}`)
-  }, [])
-
-  const simulateMarketplaceOrder = useCallback((marketplace: MarketplaceConfig['id'], sku: string, units = 1) => {
-    const product = catalog.find((p) => p.sku === sku)
-    if (!product) return { success: false, error: 'Product SKU not found' }
-    if (product.stock < units) {
-      toast.error('Overselling prevented!', { description: `Stock (${product.stock}) is insufficient for ${units} units order.` })
-      return { success: false, error: 'Insufficient inventory available' }
-    }
-
-    const listing = marketplaceListings.find((l) => l.marketplace === marketplace && l.sku === sku)
-    const price = listing ? listing.price : product.price
-    const commPct = marketplace === 'amazon' ? 0.145 : marketplace === 'flipkart' ? 0.12 : marketplace === 'meesho' ? 0.015 : 0.02
-    const commission = Math.round(price * units * commPct)
-    const shipping = 45 * units
-    const packaging = 15 * units
-    const tax = Math.round(price * units * 0.18)
-    const netProfit = (price * units) - (product.cost * units) - commission - shipping - packaging - (tax * 0.1)
-
-    // Deduct stock centrally
-    const newStock = product.stock - units
-    product.stock = newStock
-
-    // Synchronize across all marketplace listings for this SKU
-    setMarketplaceListings((prev) =>
-      prev.map((l) =>
-        l.sku === sku
-          ? {
-              ...l,
-              stock: newStock,
-              status: newStock === 0 ? 'out_of_stock' : l.status,
-              ordersCount: l.marketplace === marketplace ? l.ordersCount + 1 : l.ordersCount,
-              unitsSold: l.marketplace === marketplace ? l.unitsSold + units : l.unitsSold,
-              revenue: l.marketplace === marketplace ? l.revenue + (price * units) : l.revenue,
-              lastSyncAt: new Date().toISOString(),
-            }
-          : l
-      )
-    )
-
-    // Record order
-    const orderId = `ORD-${Date.now().toString().slice(-6)}`
-    const newOrder: MarketplaceOrder = {
-      id: orderId,
-      orderNumber: `OD${Date.now().toString().slice(-7)}`,
-      marketplace,
-      sku,
-      productName: product.name,
-      units,
-      sellingPrice: price,
-      commission,
-      shippingCost: shipping,
-      packagingCost: packaging,
-      taxAmount: tax,
-      netProfit,
-      status: 'confirmed',
-      customerCity: 'Bengaluru',
-      customerState: 'Karnataka',
-      customerPincode: '560001',
-      createdAt: new Date().toISOString(),
-    }
-    setMarketplaceOrders((prev) => [newOrder, ...prev])
-
-    // Record inventory movement
-    const movement: InventoryMovement = {
-      id: `MOV-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      sku,
-      productName: product.name,
-      delta: -units,
-      type: 'sale',
-      channel: marketplace.toUpperCase(),
-      reason: `Customer order ${orderId} reserved & confirmed`,
-      resultingStock: newStock,
-    }
-    setInventoryMovements((prev) => [movement, ...prev])
-
-    addActivity({
-      agent: 'Marketplace Sync Engine',
-      action: `New Order (${marketplace.toUpperCase()}): ${units} × ${product.name}`,
-      product: product.name,
-      amount: price * units,
-      status: 'success',
-      detail: `Order ${orderId} confirmed · Net Profit: ₹${netProfit.toLocaleString('en-IN')} · Stock synchronized to ${newStock} units across all channels.`,
-    })
-
-    toast.success(`New order on ${marketplace.toUpperCase()}!`, {
-      description: `${units} × ${product.name} @ ₹${price}. Inventory synchronized automatically.`,
-    })
-
-    return { success: true }
-  }, [catalog, marketplaceListings, addActivity])
 
   // Feature 4: AI Dynamic Pricing with strict financial safeguards
   const updatePricingRules = useCallback(async (rules: Partial<PricingRuleConfig>) => {
@@ -292,8 +156,7 @@ export function useCommerce({ auth, catalog, addActivity, pauseAgents, enabled }
         body: { newPrice: toPaise(newPrice), reason, source: seller ? 'seller' : 'agent', actor: seller ? undefined : agentName },
       })
       const c = res.change
-      store.invalidate('products', 'analytics', 'activity')
-      setMarketplaceListings((prev) => prev.map((l) => (l.sku === c.sku ? { ...l, price: rupees(c.newPrice), lastSyncAt: new Date().toISOString() } : l)))
+      store.invalidate('products', 'analytics', 'activity', 'orders')
       toast.success(`Repriced ${c.productName}`, { description: `₹${rupees(c.oldPrice)} → ₹${rupees(c.newPrice)} · gross margin ${c.marginPct}%. Saved to your catalogue.` })
       return { success: true }
     } catch (e) {
@@ -490,10 +353,8 @@ export function useCommerce({ auth, catalog, addActivity, pauseAgents, enabled }
 
 
   return {
-    marketplaces, marketplaceListings, marketplaceOrders, inventoryMovements,
     pricingRules, priceHistory, festivalEvents, supplierPurchases, supplierDeliveries,
     supplierRelationships, autonomyLevel, signedMandate, approvalQueue, reportHistory,
-    createMarketplaceListing, updateListingPriceAndStock, toggleMarketplaceStatus, simulateMarketplaceOrder,
     executeReprice, updatePricingRules, applyFestivalCampaign, setAutonomyLevel, approveQueuedAction,
     rejectQueuedAction, emergencyKillSwitch, saveGeneratedReport, getSupplierPerformance, getAiSupplierRecommendation,
     seedCommerceDemo, resetCommerce,

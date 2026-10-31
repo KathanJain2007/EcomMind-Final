@@ -12,7 +12,7 @@ import { api, ApiError } from '@/lib/api'
 
 export type Tag =
   | 'auth' | 'products' | 'analytics' | 'wallet' | 'agents' | 'activity'
-  | 'mandate' | 'suppliers' | 'negotiations' | 'profile' | 'escrow'
+  | 'mandate' | 'suppliers' | 'negotiations' | 'profile' | 'escrow' | 'orders'
 
 interface Entry {
   data?: unknown

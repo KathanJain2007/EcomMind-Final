@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { SEED_NOTIFICATIONS, type ActivityEvent, type AppNotification, type Product } from '@/data/demo'
 import { api, ApiError, type ApiBusiness, type ApiEvent, type ApiProduct, type MeResponse } from '@/lib/api'
@@ -127,10 +127,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Commerce demo data follows the backend's demo flag (e.g. after Demo Login or a reload).
   const demoFlag = !!me?.business?.demoLoaded
+  const seededFor = useRef<number | null>(null)
   useEffect(() => {
-    if (demoFlag && commerce.marketplaceListings.length === 0) seedCommerceDemo()
+    const bid = me?.business?.id ?? null
+    if (bid === null) seededFor.current = null
+    if (demoFlag && bid !== null && seededFor.current !== bid) {
+      seededFor.current = bid
+      seedCommerceDemo()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demoFlag])
+  }, [demoFlag, me?.business?.id])
 
   const setMe = useCallback((m: MeResponse) => setMeState(m), [])
 

@@ -24,7 +24,7 @@ interface InventoryRow { sku: string; name: string; stock: number; coverageDays:
 interface Recommendation { id: string; priority: 'High' | 'Medium' | 'Low'; sku: string; title: string; reason: string; impact: string; impactValue: number | null; action: string }
 
 export default function Overview() {
-  const { auth, demoLoaded, loadDemoBusiness, agentStatus, setAgentStatus, business, marketplaces, festivalEvents } = useApp()
+  const { auth, demoLoaded, loadDemoBusiness, agentStatus, setAgentStatus, business, festivalEvents } = useApp()
   const [range, setRange] = useState<7 | 30 | 90>(30)
   const navigate = useNavigate()
 
@@ -35,7 +35,8 @@ export default function Overview() {
   const events = useApiQuery<{ items: ApiEvent[] }>('/api/activity/events?pageSize=6', ['activity'])
   const mandate = useApiQuery<{ mandate: ApiMandate }>('/api/mandate', ['mandate'])
 
-  const connectedChannels = marketplaces.filter((m) => m.status === 'connected').length
+  const channelsQ = useApiQuery<{ marketplaces: { id: string; listings: number }[] }>('/api/marketplaces', ['orders', 'products'])
+  const listedChannels = (channelsQ.data?.marketplaces ?? []).filter((m) => m.listings > 0).length
   const nextFestival = festivalEvents.find((f) => f.status !== 'Completed')
   const hasData = (summary.data?.productCount ?? 0) > 0
   if (!demoLoaded && summary.data && !hasData) {
@@ -163,11 +164,11 @@ export default function Overview() {
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-foreground">Multi-Marketplace Selling</h3>
                   <span className="rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-medium text-success">
-                    {connectedChannels} channels connected
+                    {listedChannels} channels with listings
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Amazon, Flipkart, Meesho & Shopify catalogue with real-time stock protection.
+                  Amazon, Flipkart, Meesho & Shopify listings selling from one shared, oversell-protected stock pool.
                 </p>
               </div>
             </div>

@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from .models import (
     RFQ, ActivityEvent, AgentCall, Business, CompetitorPrice, Escrow, LogisticsQuote, Mandate, Negotiation,
-    NegotiationMessage, PriceChange, Product, ReturnStat, SalesDaily, ServiceAgent, StockMovement, Supplier, SupplierQuote, User,
+    MarketplaceListing, MarketplaceOrder, NegotiationMessage, PriceChange, Product, ReturnStat, SalesDaily, ServiceAgent, StockMovement, Supplier, SupplierQuote, User,
     WalletTxn,
 )
 from .security import new_id, sign
@@ -146,13 +146,21 @@ def load_demo_business(db: Session, business: Business, user: User) -> None:
     # and escrow balances only make sense next to the ledger that funded them.
     neg_ids = select(Negotiation.id).where(Negotiation.business_id == bid)
     db.execute(delete(NegotiationMessage).where(NegotiationMessage.negotiation_id.in_(neg_ids)))
-    for model in (Escrow, StockMovement, PriceChange, Negotiation, RFQ, SalesDaily, ReturnStat, CompetitorPrice, WalletTxn,
+    for model in (Escrow, StockMovement, PriceChange, MarketplaceOrder, MarketplaceListing, Negotiation, RFQ, SalesDaily, ReturnStat, CompetitorPrice, WalletTxn,
                   ActivityEvent, AgentCall, Product):
         db.execute(delete(model).where(model.business_id == bid))
 
     for p in DEMO_PRODUCTS:
         db.add(Product(business_id=bid, sku=p["sku"], name=p["name"], category=p["category"], price=rupees(p["price"]),
                        cost=rupees(p["cost"]), stock=p["stock"], avg_daily_sales=p["avg"], return_rate=p["rr"], icon=p["icon"]))
+        db.add(StockMovement(business_id=bid, sku=p["sku"], delta=p["stock"], resulting_stock=p["stock"], kind="opening",
+                             reason="Opening stock (demo data)", created_at=_today_at(8, 0)))
+        # Listed on every channel (Instagram only for small items); price and stock come from the product.
+        for channel in ("amazon", "flipkart", "meesho", "shopify", "instagram"):
+            if channel == "instagram" and p["sku"] in ("LED-005", "BOT-004"):
+                continue
+            db.add(MarketplaceListing(id=f"LST-{channel[:3].upper()}-{p['sku']}-{bid}", business_id=bid, channel=channel,
+                                      sku=p["sku"], title=p["name"], mrp=rupees(round(p["price"] * 1.35)), status="active"))
 
     # 90 days of daily sales: slow growth, weekly seasonality, fixed-seed noise.
     rng = random.Random(20261031)

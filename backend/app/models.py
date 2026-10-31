@@ -334,6 +334,58 @@ class PriceChange(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
 
 
+class MarketplaceListing(Base):
+    """A product offered on a sales channel. Price and stock always come from
+    the product, so every channel sells from one stock pool at one price."""
+    __tablename__ = "marketplace_listings"
+    __table_args__ = (UniqueConstraint("business_id", "channel", "sku"),)
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    channel: Mapped[str] = mapped_column(String(20))
+    sku: Mapped[str] = mapped_column(String(40))
+    title: Mapped[str] = mapped_column(String(200))
+    mrp: Mapped[Optional[int]] = mapped_column(Integer)  # paise
+    status: Mapped[str] = mapped_column(String(12), default="active")  # active | paused
+    external_listing_id: Mapped[Optional[str]] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class MarketplaceOrder(Base):
+    """A customer order on a sales channel. Stock is taken when it is created."""
+    __tablename__ = "marketplace_orders"
+    __table_args__ = (UniqueConstraint("business_id", "idempotency_key"),)
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    channel: Mapped[str] = mapped_column(String(20), index=True)
+    listing_id: Mapped[str] = mapped_column(String(40))
+    sku: Mapped[str] = mapped_column(String(40), index=True)
+    product_name: Mapped[str] = mapped_column(String(160))
+    quantity: Mapped[int] = mapped_column(Integer)
+    unit_price: Mapped[int] = mapped_column(Integer)  # paise, the product price when ordered
+    unit_cost: Mapped[int] = mapped_column(Integer)
+    gross_amount: Mapped[int] = mapped_column(Integer)
+    commission: Mapped[int] = mapped_column(Integer)
+    shipping_cost: Mapped[int] = mapped_column(Integer)
+    packaging_cost: Mapped[int] = mapped_column(Integer)
+    tax_amount: Mapped[int] = mapped_column(Integer)  # GST included in the price
+    net_profit: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(12), index=True)  # confirmed | dispatched | delivered | cancelled | returned
+    sale_day: Mapped[date] = mapped_column(Date)  # India date the sale was counted in sales_daily
+    customer_city: Mapped[Optional[str]] = mapped_column(String(80))
+    customer_state: Mapped[Optional[str]] = mapped_column(String(80))
+    customer_pincode: Mapped[Optional[str]] = mapped_column(String(10))
+    external_order_id: Mapped[Optional[str]] = mapped_column(String(80))
+    idempotency_key: Mapped[Optional[str]] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
+    dispatched_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+    delivered_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+    cancelled_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+    returned_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+
+
 class StockMovement(Base):
     """Every change to a product's stock, with what caused it."""
     __tablename__ = "stock_movements"

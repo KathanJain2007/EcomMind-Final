@@ -16,6 +16,7 @@ from ..models import AgentCall, Business, Mandate, Product, ServiceAgent, User, 
 from ..security import new_id, sign
 from ..seed import load_demo_business
 from ..services import agent_calls, intelligence
+from ..services import orders as orders_svc
 from ..services.ledger import budget_consumed_today, escrow_held, get_mandate, log_activity, wallet_balance, wallet_spent_today
 
 router = APIRouter(prefix="/api", tags=["store"])
@@ -66,6 +67,8 @@ def add_product(body: ProductIn, biz: Business = Depends(current_business), db: 
     p = Product(business_id=biz.id, sku=sku, name=body.name.strip(), category=body.category, price=body.price,
                 cost=body.cost, stock=body.stock, avg_daily_sales=body.avgDailySales, icon=body.icon)
     db.add(p)
+    db.flush()
+    orders_svc.record_movement(db, p, p.stock, "opening", "Opening stock (product added)")
     log_activity(db, biz.id, agent="Seller", action=f"Product added manually: {p.name}", product=p.name, status="success",
                  detail=f"SKU {sku} · {p.stock} units @ ₹{p.price / 100:,.0f}")
     db.commit()

@@ -69,12 +69,23 @@ def _m5_repricing(conn: Connection) -> None:
     conn.exec_driver_sql("UPDATE mandates SET pricing_mode = 'autonomous' WHERE auto_repricing = 1")
 
 
+def _m6_marketplace(conn: Connection) -> None:
+    # marketplace_listings / marketplace_orders are new tables (created by create_all).
+    # Existing products get an opening-stock movement so the stock history adds up.
+    conn.exec_driver_sql(
+        "INSERT INTO stock_movements (business_id, sku, delta, resulting_stock, kind, channel, reason, ref, created_at) "
+        "SELECT p.business_id, p.sku, p.stock, p.stock, 'opening', NULL, 'Opening stock', NULL, CURRENT_TIMESTAMP "
+        "FROM products p WHERE NOT EXISTS (SELECT 1 FROM stock_movements m WHERE m.business_id = p.business_id AND m.sku = p.sku)"
+    )
+
+
 MIGRATIONS: list[tuple[int, Callable[[Connection], None]]] = [
     (1, _m1_gstin_and_location),
     (2, _m2_wallet_daily_limit),
     (3, _m3_business_type),
     (4, _m4_escrow),
     (5, _m5_repricing),
+    (6, _m6_marketplace),
 ]
 
 
