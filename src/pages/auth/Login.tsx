@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router'
 import { BrainCircuit, Loader2, Play } from 'lucide-react'
 import { toast } from 'sonner'
 import { useApp } from '@/store/AppContext'
+import { ApiError } from '@/lib/api'
+import { emailError } from '@/lib/validation/email'
 import { AuthShell } from './AuthShell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,21 +18,41 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
+  const [errors, setErrors] = useState<{ email?: string; password?: string; form?: string }>({})
+  const [emailTouched, setEmailTouched] = useState(false)
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
     const errs: typeof errors = {}
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) errs.email = 'Enter a valid email address.'
+    const em = emailError(email)
+    if (em) errs.email = em
     if (password.length < 6) errs.password = 'Password must be at least 6 characters.'
     setErrors(errs)
+    setEmailTouched(true)
     if (Object.keys(errs).length) return
     setLoading(true)
-    setTimeout(() => {
-      login(email)
+    try {
+      const me = await login(email.trim(), password)
       toast.success('Welcome back', { description: 'Signed in to EcomMind.' })
-      navigate('/onboarding')
-    }, 700)
+      navigate(me.business?.onboarded ? '/' : '/onboarding')
+    } catch (err) {
+      if (err instanceof ApiError && err.field === 'email') setErrors({ email: err.message })
+      else setErrors({ form: err instanceof ApiError ? err.message : 'Sign-in failed. Try again.' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const demo = async () => {
+    setLoading(true)
+    try {
+      await demoLogin()
+      navigate('/')
+    } catch (err) {
+      setErrors({ form: err instanceof ApiError ? err.message : 'Demo login failed.' })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -50,8 +72,15 @@ export default function Login() {
       <form onSubmit={submit} className="mt-8 space-y-4" noValidate>
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" autoComplete="email" placeholder="you@yourstore.in" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!errors.email} />
-          {errors.email && <p className="text-xs text-danger">{errors.email}</p>}
+          <Input
+            id="email" type="email" autoComplete="email" placeholder="you@gmail.com" value={email}
+            onChange={(e) => { setEmail(e.target.value); if (emailTouched) setErrors((x) => ({ ...x, email: emailError(e.target.value), form: undefined })) }}
+            onBlur={() => { setEmailTouched(true); if (email) setErrors((x) => ({ ...x, email: emailError(email) })) }}
+            aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-error' : 'email-hint'}
+          />
+          {errors.email
+            ? <p id="email-error" className="text-xs text-danger">{errors.email}</p>
+            : <p id="email-hint" className="text-xs text-muted-foreground">Use your Gmail address (ending in @gmail.com).</p>}
         </div>
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
@@ -63,6 +92,7 @@ export default function Login() {
           <Input id="password" type="password" autoComplete="current-password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} aria-invalid={!!errors.password} />
           {errors.password && <p className="text-xs text-danger">{errors.password}</p>}
         </div>
+        {errors.form && <p role="alert" className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">{errors.form}</p>}
         <div className="flex items-center gap-2">
           <Checkbox id="remember" checked={remember} onCheckedChange={(c) => setRemember(c === true)} />
           <Label htmlFor="remember" className="text-sm font-normal text-muted-foreground">Remember me on this device</Label>
@@ -76,7 +106,7 @@ export default function Login() {
         <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
       </div>
 
-      <Button variant="outline" className="h-10 w-full border-brand/40 bg-brand/10 text-brand-soft hover:bg-brand/20 hover:text-brand-soft" onClick={() => { demoLogin(); navigate('/') }}>
+      <Button variant="outline" className="h-10 w-full border-brand/40 bg-brand/10 text-brand-soft hover:bg-brand/20 hover:text-brand-soft" onClick={demo} disabled={loading}>
         <Play className="h-4 w-4" aria-hidden /> Demo Login — explore with sample data
       </Button>
 

@@ -1,11 +1,13 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import {
-  FIN, DEFAULT_MANDATE, SEED_ACTIVITY, SEED_NOTIFICATIONS, seedWalletTxns,
-  type ActivityEvent, type AppNotification, type Mandate, type Product, type ServiceAgent, type WalletTxn,
-} from '@/data/demo'
-import { pseudoHash, txnId } from '@/lib/format'
+import { FIN, SEED_NOTIFICATIONS, type AppNotification } from '@/data/demo'
+import { api, ApiError, type ApiBusiness, type MeResponse } from '@/lib/api'
+import { useDataStore } from '@/store/DataStore'
 
+/* ------------------------------------------------------------------ */
+/* Session, business and agent status come from the backend.           */
+/* Escrow and notifications are still front-end demo state (not yet    */
+/* migrated) and are labelled as simulated in the UI.                  */
 /* ------------------------------------------------------------------ */
 
 export type AgentStatus = 'active' | 'idle' | 'paused'
@@ -24,268 +26,185 @@ export interface EscrowOrder {
 }
 
 export interface AuthState {
+  status: 'loading' | 'signed_out' | 'signed_in'
   loggedIn: boolean
   onboarded: boolean
   sellerName: string
   storeName: string
   email: string
   plan: string
-}
-
-export interface AgentCallReceipt {
-  txnId: string
-  signature: string
-  amount: number
-  timestamp: string
-  agentName: string
-  productName: string
+  emailVerified: boolean
+  isDemo: boolean
 }
 
 interface AppState {
   auth: AuthState
+  me: MeResponse | null
+  business: ApiBusiness | null
   demoLoaded: boolean
   agentStatus: AgentStatus
-  agentsDiscovered: number
-  lastExecution: string
-  walletBalance: number
-  walletTxns: WalletTxn[]
   escrow: EscrowOrder
   releasedTotal: number
   refundedTotal: number
-  mandate: Mandate
-  activity: ActivityEvent[]
   notifications: AppNotification[]
-  negotiationDone: boolean
-  analysisRunAt: string | null
   importedDatasets: string[]
-  extraProducts: Product[]
 }
 
 interface AppActions {
-  login: (email: string, sellerName?: string, storeName?: string) => void
-  demoLogin: () => void
-  register: (name: string, business: string, email: string) => void
-  logout: () => void
-  completeOnboarding: (storeName: string) => void
-  loadDemoBusiness: (silent?: boolean) => void
-  setAgentStatus: (s: AgentStatus) => void
-  callAgent: (agent: ServiceAgent, sku: string, productName: string) => AgentCallReceipt | { error: string }
-  topUpWallet: (amount: number) => void
-  saveMandate: (m: Mandate) => void
+  refreshMe: () => Promise<MeResponse | null>
+  login: (email: string, password: string) => Promise<MeResponse>
+  demoLogin: () => Promise<MeResponse>
+  register: (input: { name: string; business: string; email: string; password: string; category: string }) => Promise<MeResponse>
+  logout: () => Promise<void>
+  setMe: (me: MeResponse) => void
+  loadDemoBusiness: (silent?: boolean) => Promise<void>
+  setAgentStatus: (s: 'active' | 'paused') => Promise<void>
   setEscrowStep: (step: number) => void
-  markNegotiationDone: () => void
-  addActivity: (e: Omit<ActivityEvent, 'id' | 'time'>) => void
   markNotificationsRead: () => void
   setAnalysisRun: () => void
   markDatasetImported: (key: string) => void
   resetImported: () => void
-  addProduct: (p: Product) => void
 }
 
 const AppContext = createContext<(AppState & AppActions) | null>(null)
 
-/* ------------------------------------------------------------------ */
+const SIGNED_OUT: AuthState = { status: 'signed_out', loggedIn: false, onboarded: false, sellerName: '', storeName: '', email: '', plan: 'Growth Plan', emailVerified: false, isDemo: false }
 
-const AUTH_KEY = 'ecommind.auth'
-const MANDATE_KEY = 'ecommind.mandate'
-const DEMO_KEY = 'ecommind.demo'
-
-function loadAuth(): AuthState {
-  try {
-    const raw = localStorage.getItem(AUTH_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch { /* ignore */ }
-  return { loggedIn: false, onboarded: false, sellerName: '', storeName: '', email: '', plan: 'Growth Plan' }
-}
-
-function loadMandate(): Mandate {
-  try {
-    const raw = localStorage.getItem(MANDATE_KEY)
-    if (raw) return { ...DEFAULT_MANDATE, ...JSON.parse(raw) }
-  } catch { /* ignore */ }
-  return { ...DEFAULT_MANDATE }
+function authFrom(me: MeResponse | null, loading = false): AuthState {
+  if (loading) return { ...SIGNED_OUT, status: 'loading' }
+  if (!me) return SIGNED_OUT
+  return {
+    status: 'signed_in', loggedIn: true, onboarded: !!me.business?.onboarded,
+    sellerName: me.user.name, storeName: me.business?.name ?? '', email: me.user.email,
+    plan: me.business?.plan ?? 'Growth Plan', emailVerified: me.user.emailVerified, isDemo: me.user.isDemo,
+  }
 }
 
 const SEED_ESCROW: EscrowOrder = {
-  id: 'ESC-2026-1042',
-  product: 'Wireless Earbuds',
-  sku: 'EAR-001',
-  supplier: 'Supplier B — Kedar Electronics',
-  qty: 300,
-  unitPrice: 180,
-  total: 54000,
-  status: 'Locked',
-  createdAt: new Date().toISOString(),
-  step: 1, // agreement signed + money locked
+  id: 'ESC-2026-1042', product: 'Wireless Earbuds', sku: 'EAR-001', supplier: 'Supplier B — Kedar Electronics',
+  qty: 300, unitPrice: 180, total: 54000, status: 'Locked', createdAt: new Date().toISOString(), step: 1,
 }
 
-const EMPTY_ESCROW: EscrowOrder = { ...SEED_ESCROW, total: 0, qty: 0, status: 'Locked', step: 0 }
-
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [auth, setAuth] = useState<AuthState>(loadAuth)
-  const initialDemo = typeof window !== 'undefined' && localStorage.getItem(DEMO_KEY) === '1'
-  const [demoLoaded, setDemoLoaded] = useState(initialDemo)
-  const [agentStatus, setAgentStatusState] = useState<AgentStatus>('active')
-  const [walletBalance, setWalletBalance] = useState(initialDemo ? FIN.walletOpeningBalance - FIN.serviceCallSpend - FIN.logisticsAdvance : FIN.walletOpeningBalance)
-  const [walletTxns, setWalletTxns] = useState<WalletTxn[]>(initialDemo ? seedWalletTxns() : [])
-  const [escrow, setEscrow] = useState<EscrowOrder>(initialDemo ? { ...SEED_ESCROW, createdAt: new Date().toISOString() } : EMPTY_ESCROW)
+  const data = useDataStore()
+  const [me, setMeState] = useState<MeResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [escrow, setEscrow] = useState<EscrowOrder>(SEED_ESCROW)
   const [releasedTotal, setReleasedTotal] = useState(0)
-  const [mandate, setMandate] = useState<Mandate>(loadMandate)
-  const [activity, setActivity] = useState<ActivityEvent[]>(initialDemo ? SEED_ACTIVITY : [])
-  const [notifications, setNotifications] = useState<AppNotification[]>(initialDemo ? SEED_NOTIFICATIONS : [])
-  const [negotiationDone, setNegotiationDone] = useState(initialDemo)
-  const [analysisRunAt, setAnalysisRunAt] = useState<string | null>(null)
+  const [notifications, setNotifications] = useState<AppNotification[]>(SEED_NOTIFICATIONS)
   const [importedDatasets, setImportedDatasets] = useState<string[]>([])
-  const [extraProducts, setExtraProducts] = useState<Product[]>([])
-  const [lastExecution, setLastExecution] = useState(new Date().toISOString())
 
-  const persistAuth = (a: AuthState) => {
-    setAuth(a)
-    localStorage.setItem(AUTH_KEY, JSON.stringify(a))
-  }
+  const setMe = useCallback((m: MeResponse) => setMeState(m), [])
 
-  const loadDemoBusiness = useCallback((silent = false) => {
-    setDemoLoaded(true)
-    localStorage.setItem(DEMO_KEY, '1')
-    setWalletTxns(seedWalletTxns())
-    setWalletBalance(FIN.walletOpeningBalance - FIN.serviceCallSpend - FIN.logisticsAdvance)
-    setEscrow({ ...SEED_ESCROW, createdAt: new Date().toISOString() })
-    setReleasedTotal(0)
-    setActivity(SEED_ACTIVITY)
-    setNotifications(SEED_NOTIFICATIONS)
-    setNegotiationDone(true)
-    setLastExecution(new Date().toISOString())
-    setAgentStatusState('active')
-    if (!silent) toast.success('Demo business loaded', { description: '5 products, 90 days of sales, suppliers, quotes and agent activity are live.' })
-  }, [])
-
-  const login = useCallback((email: string, sellerName = 'Aarav Sharma', storeName = '') => {
-    persistAuth({ loggedIn: true, onboarded: Boolean(storeName), sellerName, storeName, email, plan: 'Growth Plan' })
-  }, [])
-
-  const demoLogin = useCallback(() => {
-    persistAuth({ loggedIn: true, onboarded: true, sellerName: 'Aarav Sharma', storeName: 'UrbanNest Living', email: 'demo@ecommind.ai', plan: 'Growth Plan' })
-    loadDemoBusiness(true)
-    toast.success('Welcome back, Aarav', { description: 'Demo business loaded with live agent activity.' })
-  }, [loadDemoBusiness])
-
-  const register = useCallback((name: string, business: string, email: string) => {
-    persistAuth({ loggedIn: true, onboarded: false, sellerName: name, storeName: business, email, plan: 'Growth Plan' })
-    toast.success('Account created', { description: 'Let’s set up your business in under a minute.' })
-  }, [])
-
-  const logout = useCallback(() => {
-    localStorage.removeItem(AUTH_KEY)
-    localStorage.removeItem(DEMO_KEY)
-    setAuth({ loggedIn: false, onboarded: false, sellerName: '', storeName: '', email: '', plan: 'Growth Plan' })
-    setDemoLoaded(false)
-    setWalletTxns([])
-    setActivity([])
-    setNotifications([])
-    setEscrow(EMPTY_ESCROW)
-    setReleasedTotal(0)
-    setAnalysisRunAt(null)
-    setImportedDatasets([])
-  }, [])
-
-  const completeOnboarding = useCallback((storeName: string) => {
-    setAuth((a) => {
-      const next = { ...a, onboarded: true, storeName: storeName || a.storeName }
-      localStorage.setItem(AUTH_KEY, JSON.stringify(next))
-      return next
-    })
-    toast.success('Setup complete', { description: 'Your autonomous economy is ready. Load the demo business to explore.' })
-  }, [])
-
-  const setAgentStatus = useCallback((s: AgentStatus) => {
-    setAgentStatusState(s)
-    if (s === 'paused') toast.warning('EcomMind paused', { description: 'All autonomous actions are on hold.' })
-    if (s === 'active') toast.success('EcomMind started', { description: 'Agent ecommind-01 is discovering and working.' })
-  }, [])
-
-  const addActivity = useCallback((e: Omit<ActivityEvent, 'id' | 'time'>) => {
-    setActivity((prev) => [{ ...e, id: `EV-${Date.now()}`, time: new Date().toISOString() }, ...prev])
-    setLastExecution(new Date().toISOString())
-  }, [])
-
-  const callAgent = useCallback((agent: ServiceAgent, sku: string, productName: string): AgentCallReceipt | { error: string } => {
-    if (mandate.agentsPaused || agentStatus === 'paused') return { error: 'All agents are paused. Resume EcomMind to place calls.' }
-    if (agent.pricePerCall > mandate.maxPerCallCost)
-      return { error: `Blocked by mandate: ₹${agent.pricePerCall}/call exceeds your ₹${mandate.maxPerCallCost} per-call limit.` }
-    if (walletBalance < agent.pricePerCall) return { error: 'Insufficient wallet balance. Top up your micro-payment wallet.' }
-    const id = txnId('TXN')
-    const receipt: AgentCallReceipt = {
-      txnId: id,
-      signature: `sig:${pseudoHash(id + agent.id)}`,
-      amount: agent.pricePerCall,
-      timestamp: new Date().toISOString(),
-      agentName: agent.name,
-      productName,
+  const refreshMe = useCallback(async () => {
+    try {
+      const m = await api<MeResponse>('/api/auth/me')
+      setMeState(m)
+      return m
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) { setMeState(null); return null }
+      throw e
     }
-    setWalletBalance((b) => b - agent.pricePerCall)
-    setWalletTxns((tx) => [
-      { id, time: receipt.timestamp, counterparty: agent.name, kind: 'service_call', amount: -agent.pricePerCall, status: 'Completed', signature: receipt.signature, memo: `1 call · ${productName} (${sku})` },
-      ...tx,
-    ])
-    addActivity({ agent: agent.name, action: `Purchased 1 ${agent.unit.replace('per ', '')}`, product: productName, amount: agent.pricePerCall, status: 'success', detail: `Receipt ${id} · signed ${receipt.signature}` })
-    return receipt
-  }, [mandate, agentStatus, walletBalance, addActivity])
-
-  const topUpWallet = useCallback((amount: number) => {
-    setWalletBalance((b) => b + amount)
-    setWalletTxns((tx) => [
-      { id: txnId('TXN'), time: new Date().toISOString(), counterparty: 'Wallet top-up (simulated)', kind: 'topup', amount, status: 'Completed', signature: `sig:${pseudoHash('topup' + Date.now())}`, memo: 'UPI top-up · demo funds' },
-      ...tx,
-    ])
-    toast.success('Wallet topped up', { description: `₹${amount.toLocaleString('en-IN')} added (simulated).` })
   }, [])
 
-  const saveMandate = useCallback((m: Mandate) => {
-    setMandate(m)
-    localStorage.setItem(MANDATE_KEY, JSON.stringify(m))
-    if (m.agentsPaused) setAgentStatusState('paused')
-    toast.success('Mandate saved', { description: 'EcomMind will operate within your updated limits.' })
+  useEffect(() => {
+    const onUnauthorized = () => { data.clear(); setMeState(null) }
+    window.addEventListener('ecommind:unauthorized', onUnauthorized)
+    return () => window.removeEventListener('ecommind:unauthorized', onUnauthorized)
+  }, [data])
+
+  useEffect(() => {
+    let alive = true
+    api<{ authenticated: boolean } & Partial<MeResponse>>('/api/auth/session')
+      .then((s) => { if (alive) setMeState(s.authenticated ? (s as MeResponse) : null) })
+      .catch(() => {
+        toast.error('Can’t reach the EcomMind server', { description: 'Start the backend (see backend/README.md) and reload.' })
+      })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
   }, [])
+
+  const afterSignIn = useCallback((m: MeResponse) => {
+    data.clear()
+    setMeState(m)
+    return m
+  }, [data])
+
+  const login = useCallback(async (email: string, password: string) => {
+    const m = await api<MeResponse>('/api/auth/login', { body: { email, password } })
+    return afterSignIn(m)
+  }, [afterSignIn])
+
+  const demoLogin = useCallback(async () => {
+    const m = await api<MeResponse>('/api/auth/demo', { method: 'POST' })
+    toast.success(`Welcome back, ${m.user.name.split(' ')[0]}`, { description: 'Demo business loaded.' })
+    return afterSignIn(m)
+  }, [afterSignIn])
+
+  const register = useCallback(async (input: { name: string; business: string; email: string; password: string; category: string }) => {
+    const m = await api<MeResponse>('/api/auth/register', { body: input })
+    toast.success('Account created', { description: 'Let’s set up your business in under a minute.' })
+    return afterSignIn(m)
+  }, [afterSignIn])
+
+  const logout = useCallback(async () => {
+    try { await api('/api/auth/logout', { method: 'POST' }) } catch { /* session may already be gone */ }
+    data.clear()
+    setMeState(null)
+    setImportedDatasets([])
+  }, [data])
+
+  const loadDemoBusiness = useCallback(async (silent = false) => {
+    try {
+      await api('/api/demo/load', { method: 'POST' })
+      await refreshMe()
+      setEscrow({ ...SEED_ESCROW, createdAt: new Date().toISOString() })
+      setReleasedTotal(0)
+      data.invalidate('products', 'analytics', 'wallet', 'agents', 'activity', 'negotiations', 'mandate')
+      if (!silent) toast.success('Demo business loaded', { description: '5 products, 90 days of sales, suppliers and agent activity. This is sample data.' })
+    } catch (e) {
+      toast.error('Couldn’t load the demo business', { description: e instanceof ApiError ? e.message : undefined })
+    }
+  }, [refreshMe, data])
+
+  const setAgentStatus = useCallback(async (s: 'active' | 'paused') => {
+    try {
+      await api('/api/agent/status', { method: 'PUT', body: { status: s } })
+      await refreshMe()
+      data.invalidate('analytics', 'activity')
+      if (s === 'paused') toast.warning('EcomMind paused', { description: 'All autonomous actions are on hold.' })
+      else toast.success('EcomMind started', { description: 'Agent ecommind-01 is working within your mandate.' })
+    } catch (e) {
+      toast.error('Couldn’t change agent status', { description: e instanceof ApiError ? e.message : undefined })
+    }
+  }, [refreshMe, data])
 
   const setEscrowStep = useCallback((step: number) => {
     setEscrow((e) => {
       const status: EscrowOrder['status'] = step >= 4 ? 'Released' : step === 3 ? 'Delivered' : step === 2 ? 'In Transit' : 'Locked'
       return { ...e, step, status }
     })
-    if (step === 2) addActivity({ agent: 'EcomMind', action: 'Supplier marked goods dispatched', product: 'Wireless Earbuds', status: 'info', detail: 'BlueDart AWB 8841-2091-CT · ETA 3 days.' })
     if (step === 4) {
-      setReleasedTotal((r) => r + SEED_ESCROW.total)
-      setWalletTxns((tx) => [
-        { id: txnId('TXN'), time: new Date().toISOString(), counterparty: 'Supplier B — Kedar Electronics', kind: 'escrow_release', amount: SEED_ESCROW.total, status: 'Released', signature: `sig:${pseudoHash('release' + Date.now())}`, memo: 'Escrow released after delivery confirmation (simulated)' },
-        ...tx,
-      ])
-      addActivity({ agent: 'EcomMind', action: '₹54,000 escrow released to Supplier B', product: 'Wireless Earbuds', amount: 54000, status: 'success', detail: 'Delivery confirmed; simulated payment released.' })
+      setReleasedTotal((r) => r + FIN.escrowLocked)
       toast.success('Escrow released', { description: '₹54,000 paid to Supplier B (simulated transaction).' })
     }
-  }, [addActivity])
+  }, [])
 
-  const markNegotiationDone = useCallback(() => setNegotiationDone(true), [])
   const markNotificationsRead = useCallback(() => setNotifications((n) => n.map((x) => ({ ...x, read: true }))), [])
-  const setAnalysisRun = useCallback(() => {
-    setAnalysisRunAt(new Date().toISOString())
-    addActivity({ agent: 'EcomMind', action: 'Full business analysis completed', status: 'success', detail: 'Forecast, pricing, return-risk and logistics intelligence refreshed.' })
-  }, [addActivity])
+  const setAnalysisRun = useCallback(() => data.invalidate('analytics'), [data])
   const markDatasetImported = useCallback((key: string) => setImportedDatasets((d) => (d.includes(key) ? d : [...d, key])), [])
   const resetImported = useCallback(() => setImportedDatasets([]), [])
-  const addProduct = useCallback((p: Product) => {
-    setExtraProducts((prev) => [...prev, p])
-    addActivity({ agent: 'Seller', action: `Product added manually: ${p.name}`, product: p.name, status: 'success', detail: `SKU ${p.sku} · ${p.stock} units @ ₹${p.price}` })
-  }, [addActivity])
 
+  const business = me?.business ?? null
   const value = useMemo(() => ({
-    auth, demoLoaded, agentStatus,
-    agentsDiscovered: 7, lastExecution,
-    walletBalance, walletTxns, escrow, releasedTotal, refundedTotal: 0,
-    mandate, activity, notifications, negotiationDone, analysisRunAt, importedDatasets, extraProducts,
-    login, demoLogin, register, logout, completeOnboarding, loadDemoBusiness, setAgentStatus,
-    callAgent, topUpWallet, saveMandate, setEscrowStep, markNegotiationDone, addActivity,
-    markNotificationsRead, setAnalysisRun, markDatasetImported, resetImported, addProduct,
-  }), [auth, demoLoaded, agentStatus, lastExecution, walletBalance, walletTxns, escrow, releasedTotal, mandate, activity, notifications, negotiationDone, analysisRunAt, importedDatasets, extraProducts, login, demoLogin, register, logout, completeOnboarding, loadDemoBusiness, setAgentStatus, callAgent, topUpWallet, saveMandate, setEscrowStep, markNegotiationDone, addActivity, markNotificationsRead, setAnalysisRun, markDatasetImported, resetImported, addProduct])
+    auth: authFrom(me, loading), me, business,
+    demoLoaded: !!business?.demoLoaded,
+    agentStatus: (business?.agentStatus ?? 'active') as AgentStatus,
+    escrow, releasedTotal, refundedTotal: 0, notifications, importedDatasets,
+    refreshMe, login, demoLogin, register, logout, setMe, loadDemoBusiness, setAgentStatus,
+    setEscrowStep, markNotificationsRead, setAnalysisRun, markDatasetImported, resetImported,
+  }), [me, loading, business, escrow, releasedTotal, notifications, importedDatasets, refreshMe, login, demoLogin, register,
+    logout, setMe, loadDemoBusiness, setAgentStatus, setEscrowStep, markNotificationsRead, setAnalysisRun, markDatasetImported, resetImported])
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
 }
