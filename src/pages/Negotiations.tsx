@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { AlertCircle, BrainCircuit, Factory, Handshake, Info, Loader2, Send, User, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useApiQuery, useDataStore } from '@/store/DataStore'
-import { api, ApiError, type ApiNegotiation } from '@/lib/api'
+import { api, ApiError, type ApiApproval, type ApiNegotiation } from '@/lib/api'
 import { cx, formatDateTime, formatPaise, timeAgo } from '@/lib/format'
 import { EmptyState, PageHeader, PanelError, StatusBadge } from '@/components/common'
 import { Button } from '@/components/ui/button'
@@ -96,10 +96,16 @@ function NegotiationDetail({ id }: { id: string }) {
     setActionError(null)
     try {
       const body = kind === 'counter' ? { unitPrice: Math.round(Number(counter) * 100) } : undefined
-      const res = await api<ApiNegotiation>(`/api/negotiations/${n.id}/${kind}`, { method: 'POST', body })
+      const res = await api<ApiNegotiation & { approval?: ApiApproval }>(`/api/negotiations/${n.id}/${kind}`, { method: 'POST', body })
       store.setData(`/api/negotiations/${n.id}`, res)
-      store.invalidate('negotiations', 'activity', 'analytics', 'escrow', 'wallet')
+      store.invalidate('negotiations', 'activity', 'analytics', 'escrow', 'wallet', 'approvals')
       if (kind === 'counter') setCounter('')
+      if (kind === 'accept' && res.approval) {
+        toast.warning('Above your mandate · sent for approval', {
+          description: `${res.approval.title}. Nothing is bought until you approve it.`,
+          action: { label: 'Review', onClick: () => navigate('/activity?tab=approvals') },
+        })
+      }
       if (kind === 'accept' && res.escrow) {
         const locked = res.escrow.status === 'locked'
         toast[locked ? 'success' : 'warning'](locked ? 'Deal confirmed · funds locked in escrow' : 'Deal confirmed · escrow awaiting funds', {
@@ -178,7 +184,7 @@ function NegotiationDetail({ id }: { id: string }) {
                   <X className="h-4 w-4" aria-hidden /> Cancel
                 </Button>
               </div>
-              <p className="text-[11px] text-muted-foreground">Accepting is checked against your mandate’s per-order and daily limits, opens an escrow for the deal and locks the money from your wallet. The supplier is paid only after you confirm delivery.</p>
+              <p className="text-[11px] text-muted-foreground">Accepting is checked against your mandate’s per-order and daily limits (deals above them go to your approval queue), opens an escrow and locks the money from your wallet. The supplier is paid only after you confirm delivery.</p>
             </div>
           )}
         </CardContent>

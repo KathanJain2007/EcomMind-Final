@@ -12,6 +12,9 @@ from ..deps import current_business, current_user, idempotency_key
 from ..errors import ApiError
 from ..models import RFQ, Business, Escrow, Negotiation, NegotiationMessage, Product, Supplier, SupplierQuote, User
 from ..security import new_id
+from fastapi.responses import JSONResponse
+
+from ..services import approvals
 from ..services import escrow as escrow_svc
 from ..services import negotiation as svc
 from ..services.ledger import log_activity
@@ -104,47 +107,13 @@ def _own_negotiation(db: Session, biz: Business, neg_id: str) -> Negotiation:
 @router.post("/rfqs", status_code=201)
 def create_rfq(body: RFQIn, key: str = Depends(idempotency_key), user: User = Depends(current_user),
                biz: Business = Depends(current_business), db: Session = Depends(get_db)):
-    existing = db.scalar(select(RFQ).where(RFQ.user_id == user.id, RFQ.idempotency_key == key))
-    if existing:
-        neg = db.scalar(select(Negotiation).where(Negotiation.rfq_id == existing.id))
-        return {"rfq": rfq_out(existing), "negotiation": neg_out(db, neg), "replayed": True}
-
-    supplier = db.get(Supplier, body.supplierId)
-    if not supplier:
-        raise ApiError(404, "supplier_not_found", "That supplier doesn't exist.", field="supplierId")
-    sku = body.sku.upper()
-    product = db.scalar(select(Product).where(Product.business_id == biz.id, Product.sku == sku))
-    if not product:
-        raise ApiError(422, "product_not_found", f"{sku} isn't in your catalogue.", field="sku")
-    if body.targetUnitPrice and body.targetUnitPrice * body.quantity > 10**12:
-        raise ApiError(422, "invalid_target", "Target price is too large.", field="targetUnitPrice")
-
-    rfq = RFQ(id=new_id("RFQ"), business_id=biz.id, user_id=user.id, supplier_id=supplier.id, supplier_name=supplier.name,
-              sku=sku, product_name=product.name, quantity=body.quantity, target_unit_price=body.targetUnitPrice,
-              delivery_location=body.deliveryLocation.strip(), delivery_days=body.deliveryDays,
-              status="quotation_requested", idempotency_key=key)
-    neg = Negotiation(id=new_id("NEG"), rfq_id=rfq.id, business_id=biz.id, supplier_id=supplier.id, sku=sku,
-                      quantity=body.quantity, status="quotation_requested")
-    db.add(rfq)
-    try:
-        db.flush()  # the RFQ row must exist before the negotiation that references it
-    except IntegrityError:
-        db.rollback()
-        raise ApiError(409, "duplicate_request", "This quotation request was already submitted.")
-    db.add(neg)
-    db.flush()
-    target = f" Target price {svc.inr(body.targetUnitPrice)} per unit." if body.targetUnitPrice else ""
-    db.add(NegotiationMessage(negotiation_id=neg.id, sender="ecommind", kind="rfq",
-                              text=f"Requesting {body.quantity} units of {product.name} ({sku}), delivery to "
-                                   f"{rfq.delivery_location} within {body.deliveryDays} days.{target}"))
-    svc.supplier_receive_rfq(db, neg, rfq, supplier)
-    if neg.status == "offer_received":
-        svc.ecommind_auto_counter(db, neg, rfq, supplier)
-    log_activity(db, biz.id, agent="EcomMind", action=f"RFQ sent to {supplier.name.split('—')[0].strip()}", product=product.name,
-                 status="info", detail=f"{body.quantity} units requested · {rfq.id}", ref=neg.id)
-    db.commit()
-    db.refresh(neg)
-    return {"rfq": rfq_out(rfq), "negotiation": neg_out(db, neg), "replayed": False}
+    rfq, neg, replayed = svc.create_rfq(db, biz.id, user.id, supplier_id=body.supplierId, sku=body.sku, quantity=body.quantity,
+                                        target_unit_price=body.targetUnitPrice, delivery_location=body.deliveryLocation,
+                                        delivery_days=body.deliveryDays, idempotency_key=key)
+    if not replayed:
+        db.commit()
+        db.refresh(neg)
+    return {"rfq": rfq_out(rfq), "negotiation": neg_out(db, neg), "replayed": replayed}
 
 
 @router.get("/rfqs")
@@ -181,9 +150,11 @@ def counter(neg_id: str, body: CounterIn, biz: Business = Depends(current_busine
 def accept(neg_id: str, user: User = Depends(current_user), biz: Business = Depends(current_business),
            db: Session = Depends(get_db)):
     n = _own_negotiation(db, biz, neg_id)
-    svc.accept_offer(db, n, user.id)
+    result, obj = svc.request_accept(db, n, user.id, agent_name=f"Seller · {user.name}"[:80])
     db.commit()
     db.refresh(n)
+    if result == "queued":
+        return JSONResponse(status_code=202, content={**neg_out(db, n), "approval": approvals.out(obj)})
     return neg_out(db, n)
 
 

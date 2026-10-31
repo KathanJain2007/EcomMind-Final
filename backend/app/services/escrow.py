@@ -90,12 +90,20 @@ def create_for_negotiation(db: Session, neg: Negotiation, user_id: int) -> Escro
     return e
 
 
-def check_lock_allowed(db: Session, e: Escrow) -> Optional[tuple[int, str, str]]:
-    """Return (http status, code, message) if funds can't be locked now."""
+MANDATE_CODES = ("mandate_max_order_value", "mandate_daily_budget")
+
+
+def check_lock_allowed(db: Session, e: Escrow, approved: bool = False) -> Optional[tuple[int, str, str]]:
+    """Return (http status, code, message) if funds can't be locked now.
+
+    ``approved``: the seller approved this lock from the approval queue, so the
+    mandate's order and daily limits don't apply (the wallet must still cover it)."""
     m = get_mandate(db, e.business_id)
     if m.agents_paused:
         return 403, "agents_paused", "All agents are paused. Resume EcomMind before locking funds."
-    if e.amount > m.max_order_value:
+    if approved:
+        pass
+    elif e.amount > m.max_order_value:
         return 403, "mandate_max_order_value", f"{inr(e.amount)} is above your mandate's {inr(m.max_order_value)} per-order limit."
     remaining = m.daily_budget - budget_consumed_today(db, e.business_id)
     if e.amount > remaining:
@@ -106,14 +114,18 @@ def check_lock_allowed(db: Session, e: Escrow) -> Optional[tuple[int, str, str]]
     return None
 
 
-def lock(db: Session, e: Escrow, *, raise_on_block: bool = True) -> bool:
+def lock(db: Session, e: Escrow, *, raise_on_block: bool = True, approved: bool = False) -> bool:
     if e.status in ACTIVE or e.status == "released":
         return True  # already locked or beyond: idempotent
     if e.status != "pending":
         raise ApiError(409, "escrow_closed", f"This escrow is {LABELS[e.status].lower()}.")
-    blocked = check_lock_allowed(db, e)
+    blocked = check_lock_allowed(db, e, approved)
     if blocked:
         e.status_note = blocked[2]
+        if not raise_on_block and blocked[1] in MANDATE_CODES and get_mandate(db, e.business_id).approval_above_limit:
+            a = queue_lock_approval(db, e, blocked[2])
+            e.status_note = f"{blocked[2]} Waiting for your approval ({a.id})."
+            return False
         if raise_on_block:
             raise ApiError(*blocked, details={"escrowId": e.id})
         return False
@@ -195,3 +207,27 @@ def cancel(db: Session, e: Escrow) -> None:
         raise ApiError(409, "invalid_transition", "Only escrows still awaiting funds can be cancelled; refund a locked escrow instead.")
     log_activity(db, e.business_id, agent="Seller", action="Escrow cancelled before funding", product=e.product_name,
                  status="info", detail=e.id, ref=e.id)
+
+
+def queue_lock_approval(db: Session, e: Escrow, why: str):
+    from . import approvals
+    return approvals.queue(db, e.business_id, action_type="escrow_lock", agent_name="EcomMind",
+                           title=f"Lock {inr(e.amount)} in escrow for {e.quantity} × {e.product_name}",
+                           description=f"{why} Approving locks the funds from your wallet for {e.supplier_name} ({e.id}).",
+                           reasons=["mandate_limit"], financial_impact=-e.amount,
+                           payload={"escrowId": e.id, "amount": e.amount}, dedupe_key=f"lock:{e.id}")
+
+
+def request_lock(db: Session, e: Escrow):
+    """Lock within the mandate, or send the lock to the approval queue.
+
+    Returns ("locked", None) or ("queued", Approval)."""
+    try:
+        lock(db, e)
+        return "locked", None
+    except ApiError as ex:
+        if ex.code not in MANDATE_CODES or not get_mandate(db, e.business_id).approval_above_limit:
+            raise
+        a = queue_lock_approval(db, e, ex.message)
+        e.status_note = f"{ex.message} Waiting for your approval ({a.id})."
+        return "queued", a

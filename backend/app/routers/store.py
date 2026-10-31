@@ -102,7 +102,7 @@ def mandate_out(m: Mandate) -> dict:
             "minGrossMarginPct": m.min_gross_margin_pct, "autoPauseReturnPct": m.auto_pause_return_pct,
             "autoPurchasing": m.auto_purchasing, "autoNegotiation": m.auto_negotiation, "autoRepricing": m.auto_repricing,
             "approvalAboveLimit": m.approval_above_limit, "agentsPaused": m.agents_paused,
-            "maxDiscountPct": m.max_discount_pct, "pricingMode": m.pricing_mode}
+            "maxDiscountPct": m.max_discount_pct, "pricingMode": m.pricing_mode, "autonomyLevel": m.autonomy_level}
 
 
 class MandateIn(BaseModel):
@@ -120,6 +120,7 @@ class MandateIn(BaseModel):
     agentsPaused: bool
     maxDiscountPct: Optional[float] = Field(default=None, ge=0, le=90)
     pricingMode: Optional[Literal["manual", "recommendation", "autonomous"]] = None
+    autonomyLevel: Optional[int] = Field(default=None, ge=1, le=3)
 
 
 class MandatePatch(BaseModel):
@@ -138,6 +139,7 @@ class MandatePatch(BaseModel):
     agentsPaused: Optional[bool] = None
     maxDiscountPct: Optional[float] = Field(default=None, ge=0, le=90)
     pricingMode: Optional[Literal["manual", "recommendation", "autonomous"]] = None
+    autonomyLevel: Optional[int] = Field(default=None, ge=1, le=3)
 
 
 _FIELDS = {"dailyBudget": "daily_budget", "maxOrderValue": "max_order_value", "maxPerCallCost": "max_per_call_cost",
@@ -145,7 +147,7 @@ _FIELDS = {"dailyBudget": "daily_budget", "maxOrderValue": "max_order_value", "m
            "minGrossMarginPct": "min_gross_margin_pct", "autoPauseReturnPct": "auto_pause_return_pct",
            "autoPurchasing": "auto_purchasing", "autoNegotiation": "auto_negotiation", "autoRepricing": "auto_repricing",
            "approvalAboveLimit": "approval_above_limit", "agentsPaused": "agents_paused",
-           "maxDiscountPct": "max_discount_pct", "pricingMode": "pricing_mode"}
+           "maxDiscountPct": "max_discount_pct", "pricingMode": "pricing_mode", "autonomyLevel": "autonomy_level"}
 
 
 def _apply_mandate(m: Mandate, biz: Business, values: dict) -> list[str]:

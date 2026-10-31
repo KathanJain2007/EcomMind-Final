@@ -95,6 +95,11 @@ def test_lock_rechecks_mandate(seller):
     r = seller.put("/api/mandate", json={**m, "maxOrderValue": 50_000_00})
     assert r.status_code == 200, r.text
     r = seller.post(f"/api/escrows/{neg['escrow']['id']}/lock")
+    # above the mandate: goes to the approval queue, no money moves
+    assert r.status_code == 202 and r.json()["approval"]["actionType"] == "escrow_lock" and r.json()["status"] == "pending"
+    assert ledger_rows(neg["escrow"]["id"]) == 0
+    seller.put("/api/mandate", json={**m, "maxOrderValue": 50_000_00, "approvalAboveLimit": False})
+    r = seller.post(f"/api/escrows/{neg['escrow']['id']}/lock")
     assert r.status_code == 403 and r.json()["error"]["code"] == "mandate_max_order_value"
     seller.put("/api/mandate", json={**m, "agentsPaused": True})
     r = seller.post(f"/api/escrows/{neg['escrow']['id']}/lock")

@@ -48,6 +48,7 @@ class Evaluation:
     max_change_met: bool
     max_discount_met: bool
     mode_allows: bool
+    autonomy_allows: bool
     band_pct: float
 
     @property
@@ -61,6 +62,8 @@ class Evaluation:
             out.append("max_discount")
         if not self.mode_allows:
             out.append("pricing_mode")
+        if not self.autonomy_allows:
+            out.append("autonomy_level")
         return out
 
     def safeguards(self, m: Mandate) -> dict:
@@ -68,7 +71,7 @@ class Evaluation:
                 "maxDiscountMet": self.max_discount_met, "modeAllows": self.mode_allows,
                 "marginPct": self.margin_pct, "pctChange": self.pct_change,
                 "minGrossMarginPct": m.min_gross_margin_pct, "allowedChangePct": self.band_pct,
-                "maxDiscountPct": m.max_discount_pct, "pricingMode": m.pricing_mode}
+                "maxDiscountPct": m.max_discount_pct, "pricingMode": m.pricing_mode, "autonomyLevel": m.autonomy_level}
 
 
 def evaluate(p: Product, new_price: int, m: Mandate, source: str) -> Evaluation:
@@ -82,6 +85,7 @@ def evaluate(p: Product, new_price: int, m: Mandate, source: str) -> Evaluation:
         max_change_met=abs(pct) <= band,
         max_discount_met=discount <= m.max_discount_pct,
         mode_allows=source != "agent" or m.pricing_mode == "autonomous",
+        autonomy_allows=source != "agent" or m.autonomy_level >= 3,
         band_pct=band,
     )
 
@@ -96,6 +100,8 @@ def _explain(ev: Evaluation, m: Mandate) -> str:
         parts.append(f"a {-ev.pct_change:g}% markdown is above the {m.max_discount_pct:g}% discount cap")
     if not ev.mode_allows:
         parts.append(f"pricing mode is {m.pricing_mode}, so agent price changes need your approval")
+    if not ev.autonomy_allows:
+        parts.append(f"autonomy level {m.autonomy_level} doesn't let agents act on their own")
     return "; ".join(parts)
 
 
@@ -163,3 +169,31 @@ def out(pc: PriceChange) -> dict:
             "pctChange": pc.pct_change, "marginPct": pc.margin_pct, "reason": pc.reason, "source": pc.source,
             "actor": pc.actor, "sellerOverride": pc.seller_override, "safeguards": pc.safeguards, "ref": pc.ref,
             "createdAt": pc.created_at.isoformat()}
+
+
+def request_change(db: Session, business_id: int, sku: str, new_price: int, *, reason: str, source: str, actor: str,
+                   user_id: Optional[int], expected_price: Optional[int] = None):
+    """Apply the change if the mandate allows it; otherwise put it in the approval queue.
+
+    Returns ("applied", PriceChange) or ("queued", Approval)."""
+    from . import approvals
+    try:
+        return "applied", change_price(db, business_id, sku, new_price, reason=reason, source=source, actor=actor,
+                                       user_id=user_id, expected_price=expected_price)
+    except ApiError as e:
+        if e.code != "needs_approval":
+            raise
+        d = e.details
+        m = get_mandate(db, business_id)
+        if not m.approval_above_limit and source != "agent":
+            raise ApiError(403, "outside_mandate", f"{e.message.replace(' This change needs your approval.', '')}. "
+                           "Approval requests are turned off in your mandate, so the change was refused.", details=d)
+        pct = d["safeguards"]["pctChange"]
+        a = approvals.queue(
+            db, business_id, action_type="price_change", agent_name=actor,
+            title=f"Reprice {d['productName']}: {inr(d['oldPrice'])} → {inr(d['newPrice'])} ({pct:+g}%)",
+            description=f"{reason} · {e.message}", reasons=d["violations"], financial_impact=d["monthlyImpact"],
+            payload={"sku": d["sku"], "newPrice": d["newPrice"], "expectedPrice": d["oldPrice"], "reason": reason,
+                     "source": source, "safeguards": d["safeguards"]},
+            dedupe_key=f"price:{d['sku']}:{d['newPrice']}")
+        return "queued", a

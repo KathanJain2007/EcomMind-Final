@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import {
-  CheckCircle2, OctagonAlert, ShieldCheck, Sliders, XCircle,
+  CheckCircle2, Loader2, OctagonAlert, ShieldCheck, Sliders, XCircle,
 } from 'lucide-react'
 import { useApp } from '@/store/AppContext'
 import { useApiQuery } from '@/store/DataStore'
@@ -10,18 +11,24 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import type { AutonomyLevel } from '@/data/models'
 
-/* Approval queue and autonomy/mandate controls (browser-side commerce
-   features), shown as tabs inside Agent Activity. */
+/* Approval queue (stored on the server; approving executes the action once)
+   and autonomy/mandate controls, shown as tabs inside Agent Activity. */
 
 export function ApprovalsPanel() {
   const { approvalQueue, approveQueuedAction, rejectQueuedAction, autonomyLevel } = useApp()
+  const [busy, setBusy] = useState<string | null>(null)
+  const act = async (id: string, fn: () => Promise<void>) => {
+    if (busy) return
+    setBusy(id)
+    try { await fn() } finally { setBusy(null) }
+  }
   return (
     <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-foreground">Autonomous Operations Approval Queue</h3>
               <p className="text-xs text-muted-foreground">
-                High-value purchases, margin exceptions, and promotional discounts requiring human sign-off.
+                Purchases above your mandate, margin exceptions, discounts and agent proposals waiting for your decision. Approving executes the action once.
               </p>
             </div>
             <span className="text-xs text-muted-foreground font-medium">
@@ -83,31 +90,41 @@ export function ApprovalsPanel() {
                       </div>
                     )}
 
+                    {item.lastError && isPending && (
+                      <p role="alert" className="mt-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-[11px] text-danger">
+                        Last attempt failed: {item.lastError}
+                      </p>
+                    )}
+
                     {/* Action buttons */}
                     {isPending && (
                       <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => rejectQueuedAction(item.id, 'Declined by seller from Approval Queue')}
+                          onClick={() => act(item.id, () => rejectQueuedAction(item.id, 'Declined by seller from Approval Queue'))}
+                          disabled={!!busy}
                           className="h-8 gap-1.5 border-danger/30 text-xs text-danger hover:bg-danger/10"
                         >
                           <XCircle className="h-3.5 w-3.5" /> Reject Action
                         </Button>
                         <Button
                           size="sm"
-                          onClick={() => approveQueuedAction(item.id)}
+                          onClick={() => act(item.id, () => approveQueuedAction(item.id))}
+                          disabled={!!busy}
                           className="h-8 btn-glow gap-1.5 border-0 text-xs text-white"
                         >
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Authorize & Execute
+                          {busy === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Authorize & Execute
                         </Button>
                       </div>
                     )}
 
                     {!isPending && (
                       <p className="mt-3 text-[11px] text-muted-foreground italic">
-                        {item.status === 'approved' ? '✓ Authorized by seller' : '✕ Declined by seller'}{' '}
-                        {item.reviewedAt ? `on ${formatDateTime(item.reviewedAt)}` : ''}
+                        {item.status === 'approved' ? '✓ Approved and executed' : '✕ Declined'}
+                        {item.reviewedBy ? ` by ${item.reviewedBy}` : ''}
+                        {item.reviewedAt ? ` on ${formatDateTime(item.reviewedAt)}` : ''}
+                        {item.rejectionReason ? ` · ${item.rejectionReason}` : ''}
                       </p>
                     )}
                   </CardContent>
@@ -117,7 +134,7 @@ export function ApprovalsPanel() {
 
             {approvalQueue.length === 0 && (
               <div className="card-surface p-12 text-center text-xs text-muted-foreground">
-                Approval queue is empty. High-risk operations will automatically appear here.
+                Approval queue is empty. Actions above your mandate, and agent proposals at autonomy levels 1–2, appear here.
               </div>
             )}
           </div>

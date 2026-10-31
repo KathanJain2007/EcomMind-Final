@@ -79,6 +79,16 @@ def _m6_marketplace(conn: Connection) -> None:
     )
 
 
+def _m7_approvals(conn: Connection) -> None:
+    # approvals is a new table (created by create_all).
+    _add_column(conn, "mandates", "autonomy_level", "INTEGER DEFAULT 2")
+    # The same proposal can't be pending twice.
+    conn.exec_driver_sql(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_approvals_pending ON approvals (business_id, dedupe_key) "
+        "WHERE status = 'pending' AND dedupe_key IS NOT NULL"
+    )
+
+
 MIGRATIONS: list[tuple[int, Callable[[Connection], None]]] = [
     (1, _m1_gstin_and_location),
     (2, _m2_wallet_daily_limit),
@@ -86,6 +96,7 @@ MIGRATIONS: list[tuple[int, Callable[[Connection], None]]] = [
     (4, _m4_escrow),
     (5, _m5_repricing),
     (6, _m6_marketplace),
+    (7, _m7_approvals),
 ]
 
 

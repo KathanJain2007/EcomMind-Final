@@ -136,10 +136,11 @@ function EscrowDetail({ id }: { id: string }) {
       const path = action === 'topup-lock' ? 'lock' : action
       const body = action === 'dispatch' ? { courier: courier.trim() || null, trackingId: tracking.trim() || null }
         : action === 'refund' ? { reason: reason.trim() } : undefined
-      const res = await api<ApiEscrow>(`/api/escrows/${e.id}/${path}`, { method: 'POST', body })
+      const res = await api<ApiEscrow & { approval?: { id: string; title: string } }>(`/api/escrows/${e.id}/${path}`, { method: 'POST', body })
       store.setData(`/api/escrows/${e.id}`, res)
-      store.invalidate('escrow', 'wallet', 'activity', 'analytics', 'negotiations', 'products')
-      toast.success(ACTION_COPY[action].done, { description: `${e.id} · ${res.statusLabel}` })
+      store.invalidate('escrow', 'wallet', 'activity', 'analytics', 'negotiations', 'products', 'orders', 'approvals')
+      if (res.approval) toast.warning('Above your mandate · sent for approval', { description: `${res.approval.title}. No money moves until you approve it in Agent Activity → Approval queue.` })
+      else toast.success(ACTION_COPY[action].done, { description: `${e.id} · ${res.statusLabel}` })
       setDialog(null)
       setReason('')
     } catch (err) {

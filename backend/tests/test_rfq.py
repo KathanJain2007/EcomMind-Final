@@ -58,12 +58,13 @@ def test_non_auto_supplier_stays_pending(seller):
 def test_accept_obeys_mandate(seller):
     neg = rfq(seller, quantity=400).json()["negotiation"]  # 400 x ₹180 = ₹72,000 > ₹60,000 max order
     r = seller.post(f"/api/negotiations/{neg['id']}/accept")
-    assert r.status_code == 403 and r.json()["error"]["code"] == "mandate_max_order_value"
+    assert r.status_code == 202 and r.json()["approval"]["actionType"] == "purchase"  # above the limit: queued
+    assert r.json()["status"] == "offer_received" and r.json()["escrow"] is None
     neg = rfq(seller).json()["negotiation"]  # 300 x ₹180 = ₹54,000
     bal = seller.get("/api/wallet").json()["balance"]
     r = seller.post(f"/api/negotiations/{neg['id']}/accept")
     assert r.status_code == 200 and r.json()["status"] == "agreed" and r.json()["agreedUnitPrice"] == 18000
-    assert seller.get("/api/wallet").json()["balance"] == bal  # agreement only, no money moved
+    assert seller.get("/api/wallet").json()["balance"] == bal  # wallet can't cover it: escrow waits, no money moved
 
 
 def test_seller_counter(seller):

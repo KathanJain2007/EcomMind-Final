@@ -254,6 +254,8 @@ class Mandate(Base):
     # (auto_repricing is kept equal to pricing_mode == "autonomous").
     max_discount_pct: Mapped[float] = mapped_column(Float, default=25)
     pricing_mode: Mapped[str] = mapped_column(String(16), default="recommendation")
+    # 1 advisory · 2 approval-based · 3 restricted autonomous (agent actions inside the mandate run on their own)
+    autonomy_level: Mapped[int] = mapped_column(Integer, default=2)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
@@ -384,6 +386,31 @@ class MarketplaceOrder(Base):
     delivered_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
     cancelled_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
     returned_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+
+
+class Approval(Base):
+    """An action waiting for the seller's decision. Approving executes it once."""
+    __tablename__ = "approvals"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    action_type: Mapped[str] = mapped_column(String(24))  # price_change | bulk_price_change | purchase | restock | escrow_lock
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(String(1000))
+    agent_name: Mapped[str] = mapped_column(String(80))
+    payload: Mapped[dict] = mapped_column(JSON)
+    reasons: Mapped[list] = mapped_column(JSON)  # why it needs approval
+    financial_impact: Mapped[int] = mapped_column(Integer, default=0)  # paise
+    status: Mapped[str] = mapped_column(String(12), default="pending", index=True)  # pending | approved | rejected
+    dedupe_key: Mapped[Optional[str]] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
+    decided_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+    decided_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    decided_by_name: Mapped[Optional[str]] = mapped_column(String(120))
+    rejection_reason: Mapped[Optional[str]] = mapped_column(String(300))
+    executed_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+    result: Mapped[Optional[dict]] = mapped_column(JSON)
+    last_error: Mapped[Optional[str]] = mapped_column(String(500))
 
 
 class StockMovement(Base):

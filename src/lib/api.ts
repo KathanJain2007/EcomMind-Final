@@ -168,6 +168,7 @@ export interface ApiMandate {
   agentsPaused: boolean
   maxDiscountPct: number
   pricingMode: 'manual' | 'recommendation' | 'autonomous'
+  autonomyLevel: 1 | 2 | 3
 }
 
 export interface ApiPriceChange {
@@ -196,6 +197,25 @@ export interface ApiPriceApprovalNeeded {
   violations: string[]
   safeguards: ApiPriceChange['safeguards']
   monthlyImpact: number
+}
+
+export interface ApiApproval {
+  id: string
+  actionType: 'price_change' | 'bulk_price_change' | 'purchase' | 'restock' | 'escrow_lock'
+  title: string
+  description: string
+  agentName: string
+  payload: Record<string, unknown>
+  reasons: string[]
+  financialImpact: number
+  status: 'pending' | 'approved' | 'rejected'
+  createdAt: string
+  decidedAt: string | null
+  decidedBy: string | null
+  rejectionReason: string | null
+  executedAt: string | null
+  result: Record<string, unknown> | null
+  lastError: string | null
 }
 
 export interface ApiServiceAgent {

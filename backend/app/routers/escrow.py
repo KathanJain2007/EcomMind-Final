@@ -12,6 +12,9 @@ from ..db import get_db
 from ..deps import current_business
 from ..errors import ApiError
 from ..models import Business, Escrow, WalletTxn
+from fastapi.responses import JSONResponse
+
+from ..services import approvals
 from ..services import escrow as svc
 
 router = APIRouter(prefix="/api/escrows", tags=["escrow"])
@@ -60,8 +63,10 @@ def get_escrow(escrow_id: str, biz: Business = Depends(current_business), db: Se
 @router.post("/{escrow_id}/lock")
 def lock(escrow_id: str, biz: Business = Depends(current_business), db: Session = Depends(get_db)):
     e = svc.get_owned(db, biz.id, escrow_id)
-    svc.lock(db, e)
+    result, approval = svc.request_lock(db, e)
     db.commit()
+    if result == "queued":
+        return JSONResponse(status_code=202, content={**_detail(db, e), "approval": approvals.out(approval)})
     return _detail(db, e)
 
 

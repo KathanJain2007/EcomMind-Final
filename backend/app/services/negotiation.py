@@ -13,10 +13,13 @@ Suppliers that don't auto-respond leave the negotiation in
 
 EcomMind's own counter (when the mandate allows automatic negotiation and the
 seller gave a target price) is one counter at the target price. Accepting a
-deal is always a seller action, checked against the mandate, and never moves
-money: it records the agreement only.
+deal is checked against the mandate; deals above its limits go to the approval
+queue. An accepted deal opens an escrow and locks the funds when the wallet
+covers them.
 """
 from __future__ import annotations
+
+from typing import Optional
 
 from datetime import date, datetime, timezone
 
@@ -126,8 +129,11 @@ def seller_counter(db: Session, neg: Negotiation, price: int) -> None:
     supplier_receive_counter(db, neg, supplier, price)
 
 
-def accept_offer(db: Session, neg: Negotiation, user_id: int):
-    """Agree the deal, open its escrow and lock the funds if the wallet covers them."""
+def accept_offer(db: Session, neg: Negotiation, user_id: int, approved: bool = False):
+    """Agree the deal, open its escrow and lock the funds if the wallet covers them.
+
+    ``approved``: the seller approved this purchase from the approval queue, so
+    the mandate's order and daily limits don't apply."""
     from . import escrow as escrow_svc
     if neg.status == "agreed":
         return escrow_svc.create_for_negotiation(db, neg, user_id)  # idempotent
@@ -137,12 +143,12 @@ def accept_offer(db: Session, neg: Negotiation, user_id: int):
     total = neg.latest_supplier_price * neg.quantity
     if mandate.agents_paused:
         raise ApiError(403, "agents_paused", "All agents are paused. Resume EcomMind before confirming deals.")
-    if total > mandate.max_order_value:
+    if total > mandate.max_order_value and not approved:
         raise ApiError(403, "mandate_max_order_value",
                        f"Order value {inr(total)} is above your mandate's {inr(mandate.max_order_value)} per-order limit. "
                        "Raise the limit in Settings or reduce the quantity.")
     remaining = mandate.daily_budget - budget_consumed_today(db, neg.business_id)
-    if total > remaining:
+    if total > remaining and not approved:
         raise ApiError(403, "mandate_daily_budget",
                        f"Order value {inr(total)} is above today's remaining mandate budget of {inr(max(0, remaining))}.")
     neg.agreed_unit_price = neg.latest_supplier_price
@@ -154,7 +160,7 @@ def accept_offer(db: Session, neg: Negotiation, user_id: int):
                  product=rfq.product_name, amount=total, status="success",
                  detail=f"{neg.quantity} units at {inr(neg.agreed_unit_price)} · {rfq.id} / {neg.id}", ref=neg.id)
     esc = escrow_svc.create_for_negotiation(db, neg, user_id)
-    locked = escrow_svc.lock(db, esc, raise_on_block=False)
+    locked = escrow_svc.lock(db, esc, raise_on_block=False, approved=approved)
     if locked:
         note = f"{inr(total)} is now locked in escrow {esc.id} and is paid to the supplier only after you confirm delivery."
     else:
@@ -164,9 +170,85 @@ def accept_offer(db: Session, neg: Negotiation, user_id: int):
     return esc
 
 
+def request_accept(db: Session, neg: Negotiation, user_id: int, agent_name: str = "EcomMind"):
+    """Accept within the mandate, or send the purchase to the approval queue.
+
+    Returns ("accepted", Escrow) or ("queued", Approval)."""
+    from . import approvals
+    try:
+        return "accepted", accept_offer(db, neg, user_id)
+    except ApiError as e:
+        if e.code not in ("mandate_max_order_value", "mandate_daily_budget"):
+            raise
+        if not get_mandate(db, neg.business_id).approval_above_limit:
+            raise
+        rfq = db.get(RFQ, neg.rfq_id)
+        total = (neg.latest_supplier_price or 0) * neg.quantity
+        a = approvals.queue(
+            db, neg.business_id, action_type="purchase", agent_name=agent_name,
+            title=f"Buy {neg.quantity} × {rfq.product_name} from {rfq.supplier_name.split('—')[0].strip()} for {inr(total)}",
+            description=f"{e.message} Approving confirms the deal at {inr(neg.latest_supplier_price)} per unit, opens an escrow and locks the funds.",
+            reasons=[e.code], financial_impact=-total,
+            payload={"negotiationId": neg.id, "unitPrice": neg.latest_supplier_price, "quantity": neg.quantity, "total": total},
+            dedupe_key=f"purchase:{neg.id}")
+        _msg(db, neg, "system", "info", f"This deal is above your mandate limits and is waiting for your approval ({a.id}).")
+        return "queued", a
+
+
 def cancel(db: Session, neg: Negotiation) -> None:
     if neg.status in {"agreed"}:
         raise ApiError(409, "negotiation_closed", "An agreed deal can't be cancelled here.")
     neg.status = "cancelled"
     db.get(RFQ, neg.rfq_id).status = "cancelled"
     _msg(db, neg, "seller", "info", "Negotiation cancelled by the seller.")
+
+
+def create_rfq(db: Session, business_id: int, user_id: int, *, supplier_id: str, sku: str, quantity: int,
+               target_unit_price: Optional[int], delivery_location: str, delivery_days: int, idempotency_key: str,
+               requested_by: str = "EcomMind") -> tuple[RFQ, Negotiation, bool]:
+    """Send a quotation request and open its negotiation (used by the API, approvals and the agent)."""
+    from sqlalchemy import select
+    from sqlalchemy.exc import IntegrityError
+
+    from ..models import NegotiationMessage, Product
+    from ..security import new_id
+
+    existing = db.scalar(select(RFQ).where(RFQ.user_id == user_id, RFQ.idempotency_key == idempotency_key))
+    if existing:
+        return existing, db.scalar(select(Negotiation).where(Negotiation.rfq_id == existing.id)), True
+    supplier = db.get(Supplier, supplier_id)
+    if not supplier:
+        raise ApiError(404, "supplier_not_found", "That supplier doesn't exist.", field="supplierId")
+    sku = sku.upper()
+    product = db.scalar(select(Product).where(Product.business_id == business_id, Product.sku == sku))
+    if not product:
+        raise ApiError(422, "product_not_found", f"{sku} isn't in your catalogue.", field="sku")
+    if quantity < 1:
+        raise ApiError(422, "invalid_quantity", "Quantity must be at least 1.", field="quantity")
+    if target_unit_price and target_unit_price * quantity > 10**12:
+        raise ApiError(422, "invalid_target", "Target price is too large.", field="targetUnitPrice")
+
+    rfq = RFQ(id=new_id("RFQ"), business_id=business_id, user_id=user_id, supplier_id=supplier.id, supplier_name=supplier.name,
+              sku=sku, product_name=product.name, quantity=quantity, target_unit_price=target_unit_price,
+              delivery_location=delivery_location.strip(), delivery_days=delivery_days,
+              status="quotation_requested", idempotency_key=idempotency_key)
+    neg = Negotiation(id=new_id("NEG"), rfq_id=rfq.id, business_id=business_id, supplier_id=supplier.id, sku=sku,
+                      quantity=quantity, status="quotation_requested")
+    db.add(rfq)
+    try:
+        db.flush()  # the RFQ row must exist before the negotiation that references it
+    except IntegrityError:
+        db.rollback()
+        raise ApiError(409, "duplicate_request", "This quotation request was already submitted.")
+    db.add(neg)
+    db.flush()
+    target = f" Target price {inr(target_unit_price)} per unit." if target_unit_price else ""
+    db.add(NegotiationMessage(negotiation_id=neg.id, sender="ecommind", kind="rfq",
+                              text=f"Requesting {quantity} units of {product.name} ({sku}), delivery to "
+                                   f"{rfq.delivery_location} within {delivery_days} days.{target}"))
+    supplier_receive_rfq(db, neg, rfq, supplier)
+    if neg.status == "offer_received":
+        ecommind_auto_counter(db, neg, rfq, supplier)
+    log_activity(db, business_id, agent=requested_by, action=f"RFQ sent to {supplier.name.split('—')[0].strip()}", product=product.name,
+                 status="info", detail=f"{quantity} units requested · {rfq.id}", ref=neg.id)
+    return rfq, neg, False

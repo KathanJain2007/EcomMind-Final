@@ -31,36 +31,49 @@ def test_seller_change_within_mandate_updates_db_and_history(seller):
 
 def test_margin_floor_and_change_band_need_approval(seller):
     r = reprice(seller, price=89900)  # -40%, margin 13.2% < 15%
-    assert r.status_code == 409
-    err = r.json()["error"]
-    assert err["code"] == "needs_approval"
-    assert set(err["details"]["violations"]) >= {"min_margin", "max_change", "max_discount"}
+    assert r.status_code == 202
+    a = r.json()["approval"]
+    assert a["actionType"] == "price_change" and a["status"] == "pending"
+    assert set(a["reasons"]) >= {"min_margin", "max_change", "max_discount"}
     assert product(seller)["price"] == 149900
     assert seller.get("/api/price-history").json()["changes"] == []
-    # explicit seller approval applies it and is recorded as an override
-    r = reprice(seller, price=89900, approved=True)
-    assert r.status_code == 200 and r.json()["change"]["sellerOverride"] is True
+    # the same proposal isn't queued twice
+    assert reprice(seller, price=89900).json()["approval"]["id"] == a["id"]
+    # the seller's approval applies it and records it as an override
+    r = seller.post(f"/api/approvals/{a['id']}/approve")
+    assert r.status_code == 200 and r.json()["status"] == "approved" and r.json()["result"]["newPrice"] == 89900
     assert product(seller)["price"] == 89900
+    h = seller.get("/api/price-history").json()["changes"][0]
+    assert h["sellerOverride"] is True and h["source"] == "approval" and h["ref"] == a["id"]
+    # the API has no way to skip the queue
+    assert reprice(seller, price=59900, approved=True).status_code == 202
+    assert reprice(seller, price=59900, source="approval").status_code == 422
 
 
-def test_agent_change_respects_pricing_mode(seller):
+def test_agent_change_respects_pricing_mode_and_autonomy(seller):
     r = reprice(seller, source="agent", actor="Market Price Agent")
-    assert r.status_code == 409 and r.json()["error"]["details"]["violations"] == ["pricing_mode"]
+    assert r.status_code == 202 and set(r.json()["approval"]["reasons"]) == {"pricing_mode", "autonomy_level"}
     assert seller.patch("/api/mandate", json={"pricingMode": "autonomous"}).json()["mandate"]["autoRepricing"] is True
-    r = reprice(seller, source="agent", actor="Market Price Agent")
+    r = reprice(seller, price=144900, source="agent", actor="Market Price Agent")
+    assert r.status_code == 202 and r.json()["approval"]["reasons"] == ["autonomy_level"]  # level 2: approval-based
+    seller.patch("/api/mandate", json={"autonomyLevel": 3})
+    r = reprice(seller, price=144800, source="agent", actor="Market Price Agent")
     assert r.status_code == 200 and r.json()["change"]["actor"] == "Market Price Agent"
-    # still bounded by the band in autonomous mode
-    assert reprice(seller, price=199900, source="agent").status_code == 409
+    # still bounded by the band at level 3
+    assert reprice(seller, price=199900, source="agent").status_code == 202
     seller.patch("/api/mandate", json={"agentsPaused": True})
     assert reprice(seller, price=144000, source="agent").json()["error"]["code"] == "agents_paused"
 
 
 def test_mandate_limits_are_read_from_db(seller):
     seller.patch("/api/mandate", json={"maxPriceChangePct": 2})
-    assert reprice(seller).status_code == 409  # -3.3% now outside ±2%
+    assert reprice(seller).status_code == 202  # -3.3% now outside ±2%
     m = seller.patch("/api/mandate", json={"maxPriceChangePct": 5, "minGrossMarginPct": 50}).json()["mandate"]
     assert m["maxPriceChangePct"] == 5 and m["minGrossMarginPct"] == 50
-    assert reprice(seller).json()["error"]["details"]["violations"] == ["min_margin"]
+    assert reprice(seller, price=145100).json()["approval"]["reasons"] == ["min_margin"]
+    # with approval requests turned off, an out-of-mandate change is refused
+    seller.patch("/api/mandate", json={"approvalAboveLimit": False})
+    assert reprice(seller, price=145200).json()["error"]["code"] == "outside_mandate"
     # PUT from Settings keeps pricing mode in step with autoRepricing
     full = seller.get("/api/mandate").json()["mandate"]
     seller.put("/api/mandate", json={**full, "autoRepricing": True, "pricingMode": None})
@@ -80,8 +93,12 @@ def test_bulk_is_all_or_nothing(seller):
     body = {"changes": [{"sku": "EAR-001", "newPrice": 145000}, {"sku": "PHN-003", "newPrice": 9900}],
             "reason": "Flash sale", "source": "festival"}
     r = seller.post("/api/products/prices", json=body)
-    assert r.status_code == 409 and len(r.json()["error"]["details"]["items"]) == 1
+    assert r.status_code == 202
+    a = r.json()["approval"]
+    assert a["actionType"] == "bulk_price_change" and len(a["payload"]["changes"]) == 2
     assert product(seller)["price"] == 149900  # the valid one wasn't applied either
+    assert seller.post(f"/api/approvals/{a['id']}/approve").status_code == 200
+    assert product(seller)["price"] == 145000 and product(seller, "PHN-003")["price"] == 9900
     bad = {**body, "changes": [{"sku": "EAR-001", "newPrice": 1}, {"sku": "EAR-001", "newPrice": 2}]}
     assert seller.post("/api/products/prices", json=bad).status_code == 422
     missing = {**body, "changes": [{"sku": "NOPE-9", "newPrice": 100}]}

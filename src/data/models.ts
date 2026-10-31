@@ -605,6 +605,7 @@ export interface ApprovalQueueItem {
   createdAt: string
   agentName: string
   actionType: 'purchase' | 'repricing' | 'discount' | 'supplier_onboard' | 'marketplace_auth' | 'refund'
+    | 'price_change' | 'bulk_price_change' | 'restock' | 'escrow_lock'
   title: string
   description: string
   details: Record<string, unknown>
@@ -614,6 +615,8 @@ export interface ApprovalQueueItem {
   reviewedBy?: string
   rejectionReason?: string
   modifiedParams?: unknown
+  /** Why the last approval attempt failed (the request stays pending). */
+  lastError?: string
 }
 
 export const INITIAL_SIGNED_MANDATE: SignedMandate = {
@@ -645,67 +648,6 @@ export const INITIAL_SIGNED_MANDATE: SignedMandate = {
   publicKey: 'ed25519:pk:3d9f48ac91be0543e0fa7c610992c906',
   signature: 'ed25519:sig:9a7f311c88d2e4bc00192eab73b98402',
   revoked: false,
-}
-
-export function seedApprovalQueue(): ApprovalQueueItem[] {
-  return [
-    {
-      id: 'APR-2026-001',
-      createdAt: daysAgoISO(0),
-      agentName: 'Demand Forecast Agent',
-      actionType: 'purchase',
-      title: 'Restock Consignment: 300 × Wireless Earbuds',
-      description: 'Order value ₹54,000 from Supplier B at negotiated ₹180/unit. Required to prevent stockout in 5 days.',
-      financialImpact: 54000,
-      status: 'pending',
-      details: {
-        sku: 'EAR-001',
-        product: 'Wireless Earbuds',
-        supplier: 'Supplier B — Kedar Electronics',
-        qty: 300,
-        unitPrice: 180,
-        quotedPrice: 195,
-        savings: 4500,
-        deliveryDays: 3,
-      },
-    },
-    {
-      id: 'APR-2026-002',
-      createdAt: daysAgoISO(1),
-      agentName: 'Market Price Agent',
-      actionType: 'repricing',
-      title: 'Price Adjustment: LED Desk Lamp',
-      description: 'Increase price from ₹1,149 to ₹1,199 (+4.3%) to optimize margin with remaining low stock of 12 units.',
-      financialImpact: 3200,
-      status: 'approved',
-      reviewedAt: daysAgoISO(1),
-      reviewedBy: 'Aarav Sharma',
-      details: {
-        sku: 'LED-005',
-        oldPrice: 1149,
-        newPrice: 1199,
-        marginPct: 46.6,
-      },
-    },
-    {
-      id: 'APR-2026-003',
-      createdAt: daysAgoISO(2),
-      agentName: 'Festival Intelligence Agent',
-      actionType: 'discount',
-      title: 'Diwali Festive Discount Bundle: Insulated Water Bottle',
-      description: 'Recommend temporary 10% festive discount on BOT-004 to capture high gifting sales velocity.',
-      financialImpact: -4500,
-      status: 'pending',
-      details: {
-        sku: 'BOT-004',
-        festival: 'Diwali Mega Festival',
-        discountPct: 10,
-        currentPrice: 649,
-        promoPrice: 584,
-        marginMaintained: 46.9,
-      },
-    },
-  ]
 }
 
 /* ================================================================== */
