@@ -17,21 +17,33 @@ _MAXMEM = 64 * 1024 * 1024
 
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
-    dk = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=_N, r=_R, p=_P, dklen=_DKLEN, maxmem=_MAXMEM)
-    return "scrypt${}${}${}${}${}".format(
-        _N, _R, _P, base64.b64encode(salt).decode(), base64.b64encode(dk).decode()
-    )
+    if hasattr(hashlib, "scrypt"):
+        dk = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=_N, r=_R, p=_P, dklen=_DKLEN, maxmem=_MAXMEM)
+        return "scrypt${}${}${}${}${}".format(
+            _N, _R, _P, base64.b64encode(salt).decode(), base64.b64encode(dk).decode()
+        )
+    iterations = 100_000
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+    return "pbkdf2${}${}${}".format(iterations, base64.b64encode(salt).decode(), base64.b64encode(dk).decode())
 
 
 def verify_password(password: str, stored: str) -> bool:
     try:
-        algo, n, r, p, salt_b64, dk_b64 = stored.split("$")
-        if algo != "scrypt":
-            return False
-        salt = base64.b64decode(salt_b64)
-        expected = base64.b64decode(dk_b64)
-        dk = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=int(n), r=int(r), p=int(p), dklen=len(expected), maxmem=_MAXMEM)
-        return hmac.compare_digest(dk, expected)
+        parts = stored.split("$")
+        algo = parts[0]
+        if algo == "scrypt" and hasattr(hashlib, "scrypt"):
+            _, n, r, p, salt_b64, dk_b64 = parts
+            salt = base64.b64decode(salt_b64)
+            expected = base64.b64decode(dk_b64)
+            dk = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=int(n), r=int(r), p=int(p), dklen=len(expected), maxmem=_MAXMEM)
+            return hmac.compare_digest(dk, expected)
+        elif algo == "pbkdf2":
+            _, iterations, salt_b64, dk_b64 = parts
+            salt = base64.b64decode(salt_b64)
+            expected = base64.b64decode(dk_b64)
+            dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, int(iterations))
+            return hmac.compare_digest(dk, expected)
+        return False
     except (ValueError, TypeError):
         return False
 

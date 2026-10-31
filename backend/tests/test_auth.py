@@ -66,7 +66,7 @@ def test_password_not_stored_or_logged(client, caplog):
     from app.models import AuthSession, User
     with dbmod.SessionLocal() as s:
         u = s.query(User).one()
-        assert u.password_hash.startswith("scrypt$") and "Sup3r" not in u.password_hash
+        assert (u.password_hash.startswith("scrypt$") or u.password_hash.startswith("pbkdf2$")) and "Sup3r" not in u.password_hash
         assert all(sess.token_hash != session_cookie for sess in s.query(AuthSession))
 
 

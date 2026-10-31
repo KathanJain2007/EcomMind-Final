@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from typing import Optional
 
 from sqlalchemy import (
     JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint,
@@ -53,7 +54,7 @@ class User(Base):
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
-    business: Mapped["Business | None"] = relationship(back_populates="owner", uselist=False)
+    business: Mapped[Optional["Business"]] = relationship(back_populates="owner", uselist=False, cascade="all, delete-orphan")
 
 
 class AuthSession(Base):
@@ -84,29 +85,29 @@ class Business(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
     name: Mapped[str] = mapped_column(String(160))
-    category: Mapped[str | None] = mapped_column(String(80))
+    category: Mapped[Optional[str]] = mapped_column(String(80))
     currency: Mapped[str] = mapped_column(String(8), default="INR")
-    channel: Mapped[str | None] = mapped_column(String(40))
-    business_type: Mapped[str | None] = mapped_column(String(60))
+    channel: Mapped[Optional[str]] = mapped_column(String(40))
+    business_type: Mapped[Optional[str]] = mapped_column(String(60))
     onboarded: Mapped[bool] = mapped_column(Boolean, default=False)
     demo_loaded: Mapped[bool] = mapped_column(Boolean, default=False)
     agent_status: Mapped[str] = mapped_column(String(12), default="active")
     plan: Mapped[str] = mapped_column(String(40), default="Growth Plan")
 
     # Business location (from Google Places when verified)
-    location_text: Mapped[str | None] = mapped_column(String(300))
-    location_place_id: Mapped[str | None] = mapped_column(String(300))
-    location_lat: Mapped[float | None] = mapped_column(Float)
-    location_lng: Mapped[float | None] = mapped_column(Float)
-    location_city: Mapped[str | None] = mapped_column(String(120))
-    location_state: Mapped[str | None] = mapped_column(String(120))
-    location_country: Mapped[str | None] = mapped_column(String(120))
+    location_text: Mapped[Optional[str]] = mapped_column(String(300))
+    location_place_id: Mapped[Optional[str]] = mapped_column(String(300))
+    location_lat: Mapped[Optional[float]] = mapped_column(Float)
+    location_lng: Mapped[Optional[float]] = mapped_column(Float)
+    location_city: Mapped[Optional[str]] = mapped_column(String(120))
+    location_state: Mapped[Optional[str]] = mapped_column(String(120))
+    location_country: Mapped[Optional[str]] = mapped_column(String(120))
     location_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # GSTIN — format-validated only (no official GST portal check is integrated).
-    gstin: Mapped[str | None] = mapped_column(String(15), unique=True)
-    gstin_status: Mapped[str | None] = mapped_column(String(32))  # "format_validated"
-    gstin_updated_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    gstin: Mapped[Optional[str]] = mapped_column(String(15), unique=True)
+    gstin_status: Mapped[Optional[str]] = mapped_column(String(32))  # "format_validated"
+    gstin_updated_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
 
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
@@ -264,8 +265,8 @@ class WalletTxn(Base):
     status: Mapped[str] = mapped_column(String(16))
     signature: Mapped[str] = mapped_column(String(80))
     memo: Mapped[str] = mapped_column(String(300))
-    ref: Mapped[str | None] = mapped_column(String(40))
-    idempotency_key: Mapped[str | None] = mapped_column(String(80))
+    ref: Mapped[Optional[str]] = mapped_column(String(40))
+    idempotency_key: Mapped[Optional[str]] = mapped_column(String(80))
 
 
 class AgentCall(Base):
@@ -277,18 +278,18 @@ class AgentCall(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
     operation: Mapped[str] = mapped_column(String(40))
-    sku: Mapped[str | None] = mapped_column(String(40))
-    product_name: Mapped[str | None] = mapped_column(String(160))
+    sku: Mapped[Optional[str]] = mapped_column(String(40))
+    product_name: Mapped[Optional[str]] = mapped_column(String(160))
     # pending | success | failed | rejected | timed_out
     status: Mapped[str] = mapped_column(String(16), index=True)
     cost: Mapped[int] = mapped_column(Integer)  # paise; charged only when status == success
-    idempotency_key: Mapped[str | None] = mapped_column(String(80))
-    error_code: Mapped[str | None] = mapped_column(String(60))
-    error_message: Mapped[str | None] = mapped_column(String(300))
-    result: Mapped[dict | None] = mapped_column(JSON)
-    txn_id: Mapped[str | None] = mapped_column(String(40))
+    idempotency_key: Mapped[Optional[str]] = mapped_column(String(80))
+    error_code: Mapped[Optional[str]] = mapped_column(String(60))
+    error_message: Mapped[Optional[str]] = mapped_column(String(300))
+    result: Mapped[Optional[dict]] = mapped_column(JSON)
+    txn_id: Mapped[Optional[str]] = mapped_column(String(40))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
-    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    completed_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
 
 
 # --------------------------------------------------------------------------- RFQ + negotiation
@@ -305,11 +306,11 @@ class RFQ(Base):
     sku: Mapped[str] = mapped_column(String(40))
     product_name: Mapped[str] = mapped_column(String(160))
     quantity: Mapped[int] = mapped_column(Integer)
-    target_unit_price: Mapped[int | None] = mapped_column(Integer)  # paise
+    target_unit_price: Mapped[Optional[int]] = mapped_column(Integer)  # paise
     delivery_location: Mapped[str] = mapped_column(String(300))
     delivery_days: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(32))
-    idempotency_key: Mapped[str | None] = mapped_column(String(80))
+    idempotency_key: Mapped[Optional[str]] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
@@ -325,10 +326,10 @@ class Negotiation(Base):
     # quotation_requested | awaiting_supplier_response | negotiation_in_progress |
     # offer_received | agreed | declined | cancelled
     status: Mapped[str] = mapped_column(String(32))
-    latest_supplier_price: Mapped[int | None] = mapped_column(Integer)
-    latest_buyer_price: Mapped[int | None] = mapped_column(Integer)
-    agreed_unit_price: Mapped[int | None] = mapped_column(Integer)
-    supplier_delivery_days: Mapped[int | None] = mapped_column(Integer)
+    latest_supplier_price: Mapped[Optional[int]] = mapped_column(Integer)
+    latest_buyer_price: Mapped[Optional[int]] = mapped_column(Integer)
+    agreed_unit_price: Mapped[Optional[int]] = mapped_column(Integer)
+    supplier_delivery_days: Mapped[Optional[int]] = mapped_column(Integer)
     rounds: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
@@ -343,7 +344,7 @@ class NegotiationMessage(Base):
     negotiation_id: Mapped[str] = mapped_column(ForeignKey("negotiations.id", ondelete="CASCADE"), index=True)
     sender: Mapped[str] = mapped_column(String(16))  # ecommind | seller | supplier | system
     kind: Mapped[str] = mapped_column(String(20))  # rfq | offer | counter | accept | decline | info
-    unit_price: Mapped[int | None] = mapped_column(Integer)
+    unit_price: Mapped[Optional[int]] = mapped_column(Integer)
     text: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
@@ -358,11 +359,11 @@ class ActivityEvent(Base):
     time: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
     agent: Mapped[str] = mapped_column(String(80))
     action: Mapped[str] = mapped_column(String(200))
-    product: Mapped[str | None] = mapped_column(String(160))
-    amount: Mapped[int | None] = mapped_column(Integer)  # paise
+    product: Mapped[Optional[str]] = mapped_column(String(160))
+    amount: Mapped[Optional[int]] = mapped_column(Integer)  # paise
     status: Mapped[str] = mapped_column(String(12))  # success | info | warning | pending
-    detail: Mapped[str | None] = mapped_column(Text)
-    ref: Mapped[str | None] = mapped_column(String(40))
+    detail: Mapped[Optional[str]] = mapped_column(Text)
+    ref: Mapped[Optional[str]] = mapped_column(String(40))
 
 
 class SchemaVersion(Base):
