@@ -12,7 +12,7 @@ import { tooltipStyle } from '@/lib/chartTheme'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-interface WalletInfo { balance: number; spentToday: number; dailyLimit: number; budgetConsumedToday: number; dailyBudget: number }
+interface WalletInfo { balance: number; spentToday: number; dailyLimit: number; budgetConsumedToday: number; dailyBudget: number; inEscrow: number }
 interface Overview { totalCalls: number; successfulCalls: number; totalSpend: number; byAgent: { agent: string; calls: number; spend: number }[] }
 
 const money = (p: number) => formatPaise(p, { decimals: p % 100 ? 2 : 0 })
@@ -31,7 +31,7 @@ export default function Wallet() {
     setTopping(true)
     try {
       await api('/api/wallet/topups', { body: { amount: 5000_00 }, idempotencyKey: newIdempotencyKey('topup') })
-      store.invalidate('wallet', 'activity', 'analytics')
+      store.invalidate('wallet', 'activity', 'analytics', 'escrow')
       toast.success('Wallet topped up', { description: '₹5,000 added (simulated demo funds).' })
     } catch (e) {
       toast.error('Top-up failed', { description: e instanceof ApiError ? e.message : undefined })
@@ -56,7 +56,7 @@ export default function Wallet() {
       {wallet.error && <div className="mb-4"><PanelError message={wallet.error.message} onRetry={wallet.reload} /></div>}
 
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <MetricCard loading={wallet.loading} label="Available Balance" value={<CountUp value={(w?.balance ?? 0) / 100} format="inr" />} icon={<WalletIcon className="h-4 w-4" aria-hidden />} hint="from ledger" />
+        <MetricCard loading={wallet.loading} label="Available Balance" value={<CountUp value={(w?.balance ?? 0) / 100} format="inr" />} icon={<WalletIcon className="h-4 w-4" aria-hidden />} hint={w?.inEscrow ? `from ledger · ${money(w.inEscrow)} held in escrow` : 'from ledger'} />
         <MetricCard loading={wallet.loading} label="Daily Spending Limit" value={<CountUp value={(w?.dailyLimit ?? 0) / 100} format="inr" />} icon={<Landmark className="h-4 w-4" aria-hidden />} hint="set in your mandate" />
         <MetricCard loading={wallet.loading} label="Spent Today" value={<CountUp value={(w?.spentToday ?? 0) / 100} format="inr" />} icon={<Zap className="h-4 w-4" aria-hidden />} hint={w?.dailyLimit ? `${Math.round((w.spentToday / w.dailyLimit) * 100)}% of limit` : undefined} />
         <MetricCard loading={today.loading} label="Service Calls Today" value={<CountUp value={o?.successfulCalls ?? 0} />} icon={<ReceiptText className="h-4 w-4" aria-hidden />} hint={`${(o?.totalCalls ?? 0) - (o?.successfulCalls ?? 0)} not completed`} />
@@ -140,13 +140,17 @@ export default function Wallet() {
                 <TableCell className="tabular whitespace-nowrap text-muted-foreground">{formatDateTime(t.time)}</TableCell>
                 <TableCell className="whitespace-nowrap font-medium">{t.counterparty}</TableCell>
                 <TableCell className="max-w-56"><span className="line-clamp-1 text-muted-foreground">{t.memo}</span></TableCell>
-                <TableCell className={cx('tabular whitespace-nowrap font-semibold', t.amount < 0 ? 'text-danger' : 'text-success')}>
-                  <span className="inline-flex items-center gap-1">
-                    {t.amount < 0 ? <ArrowDownLeft className="h-3 w-3" aria-hidden /> : <ArrowUpRight className="h-3 w-3" aria-hidden />}
-                    {money(Math.abs(t.amount))}
-                  </span>
+                <TableCell className={cx('tabular whitespace-nowrap font-semibold', t.amount < 0 ? 'text-danger' : t.amount > 0 ? 'text-success' : 'text-foreground')}>
+                  {t.amount === 0 && t.grossAmount ? (
+                    <span title="Paid from escrow; wallet balance unchanged">{money(t.grossAmount)} <span className="font-normal text-muted-foreground">from escrow</span></span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1">
+                      {t.amount < 0 ? <ArrowDownLeft className="h-3 w-3" aria-hidden /> : <ArrowUpRight className="h-3 w-3" aria-hidden />}
+                      {money(Math.abs(t.amount))}
+                    </span>
+                  )}
                 </TableCell>
-                <TableCell><StatusBadge label={t.status} tone={t.status === 'Completed' ? 'success' : t.status === 'Locked' ? 'warning' : 'info'} /></TableCell>
+                <TableCell><StatusBadge label={t.status} tone={t.status === 'Completed' || t.status === 'Released' ? 'success' : t.status === 'Locked' ? 'warning' : 'info'} /></TableCell>
               </TableRow>
             ))}
             {txns.data && txns.data.items.length === 0 && (

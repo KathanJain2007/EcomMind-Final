@@ -51,10 +51,22 @@ def _m3_business_type(conn: Connection) -> None:
     _add_column(conn, "businesses", "business_type", "VARCHAR(60)")
 
 
+def _m4_escrow(conn: Connection) -> None:
+    # escrows / stock_movements are new tables (created by create_all).
+    _add_column(conn, "wallet_txns", "gross_amount", "INTEGER")
+    # A second lock, release or refund for the same escrow is impossible at the
+    # database level, not just in application code.
+    conn.exec_driver_sql(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_escrow_entry ON wallet_txns (ref, kind) "
+        "WHERE kind IN ('escrow_lock', 'escrow_release', 'refund')"
+    )
+
+
 MIGRATIONS: list[tuple[int, Callable[[Connection], None]]] = [
     (1, _m1_gstin_and_location),
     (2, _m2_wallet_daily_limit),
     (3, _m3_business_type),
+    (4, _m4_escrow),
 ]
 
 

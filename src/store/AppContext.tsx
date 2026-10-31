@@ -1,30 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import { FIN, PRODUCTS, SEED_NOTIFICATIONS, type ActivityEvent, type AppNotification, type Product } from '@/data/demo'
+import { PRODUCTS, SEED_NOTIFICATIONS, type ActivityEvent, type AppNotification, type Product } from '@/data/demo'
 import { api, ApiError, type ApiBusiness, type ApiEvent, type ApiProduct, type MeResponse } from '@/lib/api'
 import { useApiQuery, useDataStore } from '@/store/DataStore'
 import { useCommerce, type CommerceState } from '@/store/commerce'
 
 /* ------------------------------------------------------------------ */
-/* Session, business and agent status come from the backend.           */
-/* Escrow and notifications are still front-end demo state (not yet    */
-/* migrated) and are labelled as simulated in the UI.                  */
+/* Session, business, agent status and escrow come from the backend.   */
+/* Notifications are still front-end demo state (not yet migrated).    */
 /* ------------------------------------------------------------------ */
 
 export type AgentStatus = 'active' | 'idle' | 'paused'
-
-export interface EscrowOrder {
-  id: string
-  product: string
-  sku: string
-  supplier: string
-  qty: number
-  unitPrice: number
-  total: number
-  status: 'Locked' | 'In Transit' | 'Delivered' | 'Released'
-  createdAt: string
-  step: number // 0..4 through the 5-step process
-}
 
 export interface AuthState {
   status: 'loading' | 'signed_out' | 'signed_in'
@@ -48,9 +34,6 @@ interface AppState {
   business: ApiBusiness | null
   demoLoaded: boolean
   agentStatus: AgentStatus
-  escrow: EscrowOrder
-  releasedTotal: number
-  refundedTotal: number
   notifications: AppNotification[]
   importedDatasets: string[]
   /** Recent backend activity events in the legacy shape (rupees) used by reports. */
@@ -68,7 +51,6 @@ interface AppActions {
   setMe: (me: MeResponse) => void
   loadDemoBusiness: (silent?: boolean) => Promise<void>
   setAgentStatus: (s: 'active' | 'paused') => Promise<void>
-  setEscrowStep: (step: number) => void
   markNotificationsRead: () => void
   setAnalysisRun: () => void
   markDatasetImported: (key: string) => void
@@ -93,17 +75,10 @@ function authFrom(me: MeResponse | null, loading = false): AuthState {
   }
 }
 
-const SEED_ESCROW: EscrowOrder = {
-  id: 'ESC-2026-1042', product: 'Wireless Earbuds', sku: 'EAR-001', supplier: 'Supplier B — Kedar Electronics',
-  qty: 300, unitPrice: 180, total: 54000, status: 'Locked', createdAt: new Date().toISOString(), step: 1,
-}
-
 export function AppProvider({ children }: { children: ReactNode }) {
   const data = useDataStore()
   const [me, setMeState] = useState<MeResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [escrow, setEscrow] = useState<EscrowOrder>(SEED_ESCROW)
-  const [releasedTotal, setReleasedTotal] = useState(0)
   const [notifications, setNotifications] = useState<AppNotification[]>(SEED_NOTIFICATIONS)
   const [importedDatasets, setImportedDatasets] = useState<string[]>([])
   const signedIn = !!me
@@ -223,10 +198,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       await api('/api/demo/load', { method: 'POST' })
       await refreshMe()
-      setEscrow({ ...SEED_ESCROW, createdAt: new Date().toISOString() })
-      setReleasedTotal(0)
       seedCommerceDemo()
-      data.invalidate('products', 'analytics', 'wallet', 'agents', 'activity', 'negotiations', 'mandate')
+      data.invalidate('products', 'analytics', 'wallet', 'agents', 'activity', 'negotiations', 'mandate', 'escrow')
       if (!silent) toast.success('Demo business loaded', { description: '5 products, 90 days of sales, suppliers and agent activity. This is sample data.' })
     } catch (e) {
       toast.error('Couldn’t load the demo business', { description: e instanceof ApiError ? e.message : undefined })
@@ -245,17 +218,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [refreshMe, data])
 
-  const setEscrowStep = useCallback((step: number) => {
-    setEscrow((e) => {
-      const status: EscrowOrder['status'] = step >= 4 ? 'Released' : step === 3 ? 'Delivered' : step === 2 ? 'In Transit' : 'Locked'
-      return { ...e, step, status }
-    })
-    if (step === 4) {
-      setReleasedTotal((r) => r + FIN.escrowLocked)
-      toast.success('Escrow released', { description: '₹54,000 paid to Supplier B (simulated transaction).' })
-    }
-  }, [])
-
   const markNotificationsRead = useCallback(() => setNotifications((n) => n.map((x) => ({ ...x, read: true }))), [])
   const setAnalysisRun = useCallback(() => data.invalidate('analytics'), [data])
   const markDatasetImported = useCallback((key: string) => setImportedDatasets((d) => (d.includes(key) ? d : [...d, key])), [])
@@ -268,11 +230,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     auth: authFrom(me, loading), me, business,
     demoLoaded: !!business?.demoLoaded,
     agentStatus: (business?.agentStatus ?? 'active') as AgentStatus,
-    escrow, releasedTotal, refundedTotal: 0, notifications, importedDatasets,
+    notifications, importedDatasets,
     refreshMe, login, demoLogin, register, logout, setMe, loadDemoBusiness, setAgentStatus,
-    setEscrowStep, markNotificationsRead, setAnalysisRun, markDatasetImported, resetImported,
-  }), [commerce, activity, extraProducts, addActivity, me, loading, business, escrow, releasedTotal, notifications, importedDatasets, refreshMe, login, demoLogin, register,
-    logout, setMe, loadDemoBusiness, setAgentStatus, setEscrowStep, markNotificationsRead, setAnalysisRun, markDatasetImported, resetImported])
+    markNotificationsRead, setAnalysisRun, markDatasetImported, resetImported,
+  }), [commerce, activity, extraProducts, addActivity, me, loading, business, notifications, importedDatasets, refreshMe, login, demoLogin, register,
+    logout, setMe, loadDemoBusiness, setAgentStatus, markNotificationsRead, setAnalysisRun, markDatasetImported, resetImported])
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
 }

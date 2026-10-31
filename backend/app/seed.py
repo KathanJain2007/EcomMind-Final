@@ -16,8 +16,9 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .models import (
-    ActivityEvent, AgentCall, Business, CompetitorPrice, LogisticsQuote, Mandate, Product, ReturnStat,
-    SalesDaily, ServiceAgent, Supplier, SupplierQuote, User, WalletTxn,
+    RFQ, ActivityEvent, AgentCall, Business, CompetitorPrice, Escrow, LogisticsQuote, Mandate, Negotiation,
+    NegotiationMessage, Product, ReturnStat, SalesDaily, ServiceAgent, StockMovement, Supplier, SupplierQuote, User,
+    WalletTxn,
 )
 from .security import new_id, sign
 
@@ -141,7 +142,12 @@ def _today_at(h: int, m: int) -> datetime:
 def load_demo_business(db: Session, business: Business, user: User) -> None:
     """Replace this seller's store contents with the UrbanNest Living demo."""
     bid = business.id
-    for model in (SalesDaily, ReturnStat, CompetitorPrice, WalletTxn, ActivityEvent, AgentCall, Product):
+    # Deals, escrows and stock history belong to the products being replaced,
+    # and escrow balances only make sense next to the ledger that funded them.
+    neg_ids = select(Negotiation.id).where(Negotiation.business_id == bid)
+    db.execute(delete(NegotiationMessage).where(NegotiationMessage.negotiation_id.in_(neg_ids)))
+    for model in (Escrow, StockMovement, Negotiation, RFQ, SalesDaily, ReturnStat, CompetitorPrice, WalletTxn,
+                  ActivityEvent, AgentCall, Product):
         db.execute(delete(model).where(model.business_id == bid))
 
     for p in DEMO_PRODUCTS:

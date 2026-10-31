@@ -216,6 +216,8 @@ export interface ApiTxn {
   counterparty: string
   kind: string
   amount: number
+  /** Money moved when it differs from the wallet effect (an escrow release moves 0 from the wallet). */
+  grossAmount?: number | null
   status: string
   signature: string
   memo: string
@@ -301,6 +303,58 @@ export interface ApiNegotiation {
   updatedAt: string
   rfq: ApiRFQ
   messages?: ApiNegotiationMessage[]
+  escrow: { id: string; status: EscrowStatus; statusLabel: string; amount: number; statusNote: string | null } | null
+}
+
+export type EscrowStatus = 'pending' | 'locked' | 'dispatched' | 'delivered' | 'released' | 'refunded' | 'cancelled'
+
+export interface ApiEscrowLedgerEntry {
+  id: string
+  time: string
+  kind: string
+  amount: number
+  grossAmount: number | null
+  status: string
+  memo: string | null
+  signature: string
+}
+
+export interface ApiEscrow {
+  id: string
+  negotiationId: string
+  rfqId: string
+  buyerUserId: number
+  supplierId: string
+  supplierName: string
+  sku: string
+  productName: string
+  quantity: number
+  unitPrice: number
+  amount: number
+  status: EscrowStatus
+  statusLabel: string
+  statusNote: string | null
+  courier: string | null
+  trackingId: string | null
+  refundReason: string | null
+  createdAt: string
+  lockedAt: string | null
+  dispatchedAt: string | null
+  deliveredAt: string | null
+  releasedAt: string | null
+  refundedAt: string | null
+  cancelledAt: string | null
+  ledger?: ApiEscrowLedgerEntry[]
+}
+
+export interface ApiEscrowSummary {
+  byStatus: Record<EscrowStatus, { count: number; amount: number }>
+  held: number
+  heldCount: number
+  awaitingFunds: number
+  released: number
+  refunded: number
+  total: number
 }
 
 export interface Paged<T> {

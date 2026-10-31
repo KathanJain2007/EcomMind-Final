@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { useApp } from '@/store/AppContext'
 import { buildUrl, useApiQuery } from '@/store/DataStore'
 import { downloadFile, type ApiAgentCall, type ApiEvent, type ApiServiceAgent, type ApiTxn, type Paged } from '@/lib/api'
-import { cx, downloadCSV, formatDateTime, formatPaise } from '@/lib/format'
+import { cx, formatDateTime, formatPaise } from '@/lib/format'
 import { ChartCard, ChartEmpty, ChartSkeleton, MetricCard, PageHeader, PanelError, StatusBadge } from '@/components/common'
 import { ActivityTimeline } from '@/components/ActivityTimeline'
 import { ApprovalsPanel, MandatesPanel } from '@/components/activity/AutonomyPanels'
@@ -381,7 +381,9 @@ function TransactionsTab() {
                 <TableCell className="whitespace-nowrap font-medium">{t.counterparty}</TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">{TXN_KINDS[t.kind] ?? t.kind}</TableCell>
                 <TableCell className="max-w-56"><span className="line-clamp-1 text-muted-foreground">{t.memo}</span></TableCell>
-                <TableCell className={cx('tabular whitespace-nowrap font-semibold', t.amount < 0 ? 'text-danger' : 'text-success')}>{t.amount < 0 ? '−' : '+'}{money(Math.abs(t.amount))}</TableCell>
+                <TableCell className={cx('tabular whitespace-nowrap font-semibold', t.amount < 0 ? 'text-danger' : t.amount > 0 ? 'text-success' : 'text-foreground')} title={t.amount === 0 && t.grossAmount ? 'Paid from escrow; wallet balance unchanged' : undefined}>
+                  {t.amount === 0 && t.grossAmount ? money(t.grossAmount) : `${t.amount < 0 ? '−' : '+'}${money(Math.abs(t.amount))}`}
+                </TableCell>
                 <TableCell><StatusBadge label={t.status} tone={t.status === 'Completed' ? 'success' : t.status === 'Locked' ? 'warning' : 'info'} /></TableCell>
               </TableRow>
             ))}
@@ -481,18 +483,18 @@ function LogTab() {
 
 /* ------------------------------------------------------------------ business reports (formerly /reports) */
 
-const REPORT_ICONS: Record<string, typeof FileText> = { sales: BarChart3, inventory: Package, 'agent-usage': Wallet, negotiations: Handshake }
+const REPORT_ICONS: Record<string, typeof FileText> = { sales: BarChart3, inventory: Package, 'agent-usage': Wallet, negotiations: Handshake, escrow: ShieldCheck }
 const REPORT_DESC: Record<string, string> = {
   sales: 'Daily units, orders and revenue for every SKU.',
   inventory: 'Stock levels, coverage and status for every SKU.',
   'agent-usage': 'Successful and failed calls and spend per service agent.',
   negotiations: 'RFQs, offers, counter-offers and agreed prices.',
+  escrow: 'Every escrow order with its amount, status and lock, dispatch, delivery, release and refund times.',
 }
 
 function ReportsTab() {
-  const { escrow } = useApp()
   const [days, setDays] = useState(30)
-  const q = useApiQuery<{ reports: { id: string; title: string; rows: number }[]; snapshot: { revenue: number; agentSpend: number; highRiskPincodes: number } }>(`/api/activity/reports?days=${days}`, ['analytics', 'activity', 'products', 'negotiations'])
+  const q = useApiQuery<{ reports: { id: string; title: string; rows: number }[]; snapshot: { revenue: number; agentSpend: number; highRiskPincodes: number; inEscrow: number } }>(`/api/activity/reports?days=${days}`, ['analytics', 'activity', 'products', 'negotiations', 'escrow'])
   const reports = useMemo(() => q.data?.reports ?? [], [q.data])
 
   return (
@@ -509,14 +511,11 @@ function ReportsTab() {
         {q.loading && Array.from({ length: 3 }).map((_, i) => <Card key={i} className="card-surface h-44 animate-pulse" />)}
         {reports.map((r) => (
           <ReportCard key={r.id} icon={REPORT_ICONS[r.id] ?? FileText} title={r.title} desc={REPORT_DESC[r.id] ?? ''}
-            meta={`${r.rows} rows · ${r.id === 'sales' || r.id === 'agent-usage' ? `last ${days} days` : 'current snapshot'}`}
+            meta={`${r.rows} rows · ${r.id === 'sales' || r.id === 'agent-usage' || r.id === 'escrow' ? `last ${days} days` : 'current snapshot'}`}
             onDownload={() => downloadFile(`/api/activity/reports/${r.id}.csv`, { days }, `ecommind_${r.id}_report.csv`)} />
         ))}
         <ReportCard icon={ActivityIcon} title="Daily Agent Activity Report" desc="Every autonomous action with timestamps, agents and amounts." meta="all activity · use the Activity log tab to filter"
           onDownload={() => downloadFile('/api/activity/events.csv', { days }, 'ecommind_agent_activity.csv')} />
-        <ReportCard icon={ShieldCheck} title="Escrow Report" desc="Escrow order status (simulated demo escrow, kept in this browser)." meta="1 row · current snapshot"
-          onDownload={async () => downloadCSV('ecommind_escrow_report.csv', ['Escrow ID', 'Product', 'Supplier', 'Qty', 'Unit price (INR)', 'Total (INR)', 'Status'],
-            [[escrow.id, escrow.product, escrow.supplier, escrow.qty, escrow.unitPrice, escrow.total, escrow.status]])} />
       </div>
       <div className="pt-2">
         <h2 className="mb-1 text-sm font-semibold">Report builder</h2>
@@ -529,7 +528,7 @@ function ReportsTab() {
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Snapshot</span>
             <span className="text-muted-foreground">Revenue ({days}d): <span className="tabular font-semibold text-foreground">{formatPaise(q.data.snapshot.revenue)}</span></span>
             <span className="text-muted-foreground">Agent spend ({days}d): <span className="tabular font-semibold text-foreground">{money(q.data.snapshot.agentSpend)}</span></span>
-            <span className="text-muted-foreground">In escrow (demo): <span className="tabular font-semibold text-foreground">₹{(escrow.status === 'Released' ? 0 : escrow.total).toLocaleString('en-IN')}</span></span>
+            <span className="text-muted-foreground">In escrow now: <span className="tabular font-semibold text-foreground">{money(q.data.snapshot.inEscrow)}</span></span>
             <span className="text-muted-foreground">High-risk pincodes: <span className="tabular font-semibold text-warning">{q.data.snapshot.highRiskPincodes}</span></span>
           </CardContent>
         </Card>

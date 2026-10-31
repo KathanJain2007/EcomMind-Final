@@ -289,7 +289,6 @@ export const SEED_ACTIVITY: ActivityEvent[] = [
   { id: 'EV-3', time: todayAt(9, 0), agent: 'EcomMind', action: 'Supplier quotation requested', product: 'Wireless Earbuds', status: 'info', detail: 'RFQ broadcast to 3 supplier agents for 300 units.' },
   { id: 'EV-4', time: todayAt(9, 2), agent: 'EcomMind', action: 'Counter-offer sent', product: 'Wireless Earbuds', status: 'info', detail: 'Countered Supplier B at ₹175/unit against ₹195 quote.' },
   { id: 'EV-5', time: todayAt(9, 5), agent: 'EcomMind', action: 'Supplier B selected', product: 'Wireless Earbuds', status: 'success', detail: 'Final price ₹180/unit, delivery in 3 days. Savings ₹4,500 vs quote.' },
-  { id: 'EV-6', time: todayAt(9, 5), agent: 'EcomMind', action: '₹54,000 escrow initiated', product: 'Wireless Earbuds', amount: 54000, status: 'pending', detail: 'Funds locked in simulated escrow ESC-2026-1042 pending delivery.' },
   { id: 'EV-7', time: todayAt(9, 10), agent: 'Logistics Agent', action: 'Logistics quotation purchased', amount: 3, status: 'success', detail: '3 courier quotes compared; BlueDart Surface recommended.' },
   { id: 'EV-8', time: todayAt(9, 12), agent: 'EcomMind', action: 'Logistics booking advance paid', amount: 500, status: 'success', detail: 'BlueDart Surface Express booked for the inbound consignment (simulated).' },
   { id: 'EV-9', time: todayAt(9, 15), agent: 'Return Risk Agent', action: '40 pincode risk scores purchased', product: 'Phone Case', amount: 40, status: 'success', detail: 'Pincode 110001 flagged at 31% return rate.' },
@@ -308,7 +307,6 @@ export interface AppNotification {
 
 export const SEED_NOTIFICATIONS: AppNotification[] = [
   { id: 'N-1', title: 'Stockout risk: Wireless Earbuds', body: 'Coverage is 5 days. EcomMind has negotiated a 300-unit restock.', time: todayAt(9, 0), read: false, route: '/inventory', tone: 'warning' },
-  { id: 'N-2', title: '₹54,000 locked in escrow', body: 'Order for 300 × Wireless Earbuds from Supplier B awaiting dispatch.', time: todayAt(9, 5), read: false, route: '/escrow', tone: 'info' },
   { id: 'N-3', title: 'Negotiation won — saved ₹4,500', body: 'Supplier B accepted ₹180/unit against a ₹195 quote.', time: todayAt(9, 5), read: false, route: '/negotiations', tone: 'success' },
   { id: 'N-4', title: 'High return risk detected', body: 'Phone Case returns at 31% in pincode 110001.', time: todayAt(9, 15), read: true, route: '/insights', tone: 'warning' },
 ]
@@ -376,7 +374,6 @@ export function seedWalletTxns(): WalletTxn[] {
     { id: 'TXN-9K2JX1', time: t(9, 15), counterparty: 'Return Risk Agent', kind: 'service_call', amount: -40, status: 'Completed', signature: 'sig:77b0d2aa', memo: '40 pincode risk scores' },
     { id: 'TXN-9K2HF8', time: t(9, 12), counterparty: 'BlueDart (booking)', kind: 'logistics', amount: -500, status: 'Completed', signature: 'sig:bd88412c', memo: 'Logistics booking advance — inbound consignment' },
     { id: 'TXN-9K2GB3', time: t(9, 10), counterparty: 'Logistics Agent', kind: 'service_call', amount: -3, status: 'Completed', signature: 'sig:31cf9e07', memo: '3 courier quotes' },
-    { id: 'TXN-9K2ESC', time: t(9, 5), counterparty: 'Escrow — Supplier B', kind: 'escrow_lock', amount: -54000, status: 'Locked', signature: 'sig:esc00a42', memo: '300 × Wireless Earbuds @ ₹180 (simulated escrow)' },
     { id: 'TXN-9K2DQ7', time: t(8, 55), counterparty: 'Demand Forecast Agent', kind: 'service_call', amount: -12, status: 'Completed', signature: 'sig:a0d55193', memo: '3 demand forecasts' },
   ]
 }

@@ -10,8 +10,9 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import current_business, current_user, idempotency_key
 from ..errors import ApiError
-from ..models import RFQ, Business, Negotiation, NegotiationMessage, Product, Supplier, SupplierQuote, User
+from ..models import RFQ, Business, Escrow, Negotiation, NegotiationMessage, Product, Supplier, SupplierQuote, User
 from ..security import new_id
+from ..services import escrow as escrow_svc
 from ..services import negotiation as svc
 from ..services.ledger import log_activity
 
@@ -84,6 +85,9 @@ def neg_out(db: Session, n: Negotiation, with_messages: bool = True) -> dict:
            "latestBuyerPrice": n.latest_buyer_price, "agreedUnitPrice": n.agreed_unit_price,
            "supplierDeliveryDays": n.supplier_delivery_days, "rounds": n.rounds,
            "createdAt": n.created_at.isoformat(), "updatedAt": n.updated_at.isoformat(), "rfq": rfq_out(rfq)}
+    esc = db.scalar(select(Escrow).where(Escrow.negotiation_id == n.id))
+    out["escrow"] = ({"id": esc.id, "status": esc.status, "statusLabel": escrow_svc.LABELS[esc.status],
+                      "amount": esc.amount, "statusNote": esc.status_note} if esc else None)
     if with_messages:
         out["messages"] = [{"id": m.id, "sender": m.sender, "kind": m.kind, "unitPrice": m.unit_price, "text": m.text,
                             "createdAt": m.created_at.isoformat()} for m in n.messages]
@@ -174,9 +178,10 @@ def counter(neg_id: str, body: CounterIn, biz: Business = Depends(current_busine
 
 
 @router.post("/negotiations/{neg_id}/accept")
-def accept(neg_id: str, biz: Business = Depends(current_business), db: Session = Depends(get_db)):
+def accept(neg_id: str, user: User = Depends(current_user), biz: Business = Depends(current_business),
+           db: Session = Depends(get_db)):
     n = _own_negotiation(db, biz, neg_id)
-    svc.accept_offer(db, n)
+    svc.accept_offer(db, n, user.id)
     db.commit()
     db.refresh(n)
     return neg_out(db, n)

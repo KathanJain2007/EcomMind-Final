@@ -126,9 +126,11 @@ def seller_counter(db: Session, neg: Negotiation, price: int) -> None:
     supplier_receive_counter(db, neg, supplier, price)
 
 
-def accept_offer(db: Session, neg: Negotiation) -> None:
+def accept_offer(db: Session, neg: Negotiation, user_id: int):
+    """Agree the deal, open its escrow and lock the funds if the wallet covers them."""
+    from . import escrow as escrow_svc
     if neg.status == "agreed":
-        return  # idempotent
+        return escrow_svc.create_for_negotiation(db, neg, user_id)  # idempotent
     if neg.status != "offer_received" or not neg.latest_supplier_price:
         raise ApiError(409, "no_offer", "There is no supplier offer to accept yet.")
     mandate = get_mandate(db, neg.business_id)
@@ -147,13 +149,19 @@ def accept_offer(db: Session, neg: Negotiation) -> None:
     neg.status = "agreed"
     rfq = db.get(RFQ, neg.rfq_id)
     rfq.status = "agreed"
-    _msg(db, neg, "seller", "accept",
-         f"Deal confirmed at {inr(neg.agreed_unit_price)} per unit · total {inr(total)}. "
-         "No money has moved: lock funds in escrow as the next step.", neg.agreed_unit_price)
     supplier = db.get(Supplier, neg.supplier_id)
     log_activity(db, neg.business_id, agent="EcomMind", action=f"Deal agreed with {supplier.name.split('—')[0].strip()}",
                  product=rfq.product_name, amount=total, status="success",
                  detail=f"{neg.quantity} units at {inr(neg.agreed_unit_price)} · {rfq.id} / {neg.id}", ref=neg.id)
+    esc = escrow_svc.create_for_negotiation(db, neg, user_id)
+    locked = escrow_svc.lock(db, esc, raise_on_block=False)
+    if locked:
+        note = f"{inr(total)} is now locked in escrow {esc.id} and is paid to the supplier only after you confirm delivery."
+    else:
+        note = f"Escrow {esc.id} is open but no money has moved: {esc.status_note}"
+    _msg(db, neg, "seller", "accept",
+         f"Deal confirmed at {inr(neg.agreed_unit_price)} per unit · total {inr(total)}. {note}", neg.agreed_unit_price)
+    return esc
 
 
 def cancel(db: Session, neg: Negotiation) -> None:

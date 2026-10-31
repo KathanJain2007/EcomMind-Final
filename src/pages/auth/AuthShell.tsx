@@ -27,7 +27,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
             {[
               { icon: Sparkles, text: 'Forecasts demand and detects stockouts before they cost you sales' },
               { icon: Handshake, text: 'Negotiates with supplier agents and locks the best price' },
-              { icon: ShieldCheck, text: 'Pays through simulated escrow — released only on delivery' },
+              { icon: ShieldCheck, text: 'Pays suppliers through escrow — released only on delivery' },
             ].map((f) => (
               <li key={f.text} className="flex items-start gap-3 text-sm text-muted-foreground">
                 <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand/12 text-brand-soft">

@@ -74,6 +74,7 @@ export default function Negotiations() {
 
 function NegotiationDetail({ id }: { id: string }) {
   const store = useDataStore()
+  const navigate = useNavigate()
   const q = useApiQuery<ApiNegotiation>(`/api/negotiations/${id}`, ['negotiations'])
   const [counter, setCounter] = useState('')
   const [busy, setBusy] = useState<null | 'counter' | 'accept' | 'cancel'>(null)
@@ -97,9 +98,15 @@ function NegotiationDetail({ id }: { id: string }) {
       const body = kind === 'counter' ? { unitPrice: Math.round(Number(counter) * 100) } : undefined
       const res = await api<ApiNegotiation>(`/api/negotiations/${n.id}/${kind}`, { method: 'POST', body })
       store.setData(`/api/negotiations/${n.id}`, res)
-      store.invalidate('negotiations', 'activity', 'analytics')
+      store.invalidate('negotiations', 'activity', 'analytics', 'escrow', 'wallet')
       if (kind === 'counter') setCounter('')
-      if (kind === 'accept') toast.success('Deal confirmed', { description: `${n.quantity} units at ${formatPaise(res.agreedUnitPrice ?? 0)}/unit. No funds moved yet.` })
+      if (kind === 'accept' && res.escrow) {
+        const locked = res.escrow.status === 'locked'
+        toast[locked ? 'success' : 'warning'](locked ? 'Deal confirmed · funds locked in escrow' : 'Deal confirmed · escrow awaiting funds', {
+          description: locked ? `${formatPaise(res.escrow.amount)} is held in ${res.escrow.id} until you confirm delivery.` : res.escrow.statusNote ?? undefined,
+          action: { label: 'View escrow', onClick: () => navigate(`/escrow?id=${res.escrow!.id}`) },
+        })
+      }
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : 'That action didn’t go through. Try again.')
     } finally {
@@ -171,7 +178,7 @@ function NegotiationDetail({ id }: { id: string }) {
                   <X className="h-4 w-4" aria-hidden /> Cancel
                 </Button>
               </div>
-              <p className="text-[11px] text-muted-foreground">Accepting records the agreement only. It’s checked against your mandate’s per-order and daily limits, and no money moves until you lock funds in escrow.</p>
+              <p className="text-[11px] text-muted-foreground">Accepting is checked against your mandate’s per-order and daily limits, opens an escrow for the deal and locks the money from your wallet. The supplier is paid only after you confirm delivery.</p>
             </div>
           )}
         </CardContent>
@@ -199,6 +206,15 @@ function NegotiationDetail({ id }: { id: string }) {
               </div>
             ))}
           </dl>
+          {n.escrow && (
+            <Link to={`/escrow?id=${n.escrow.id}`} className="mt-4 flex items-center justify-between gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2.5 text-sm transition-colors hover:bg-secondary/70">
+              <span className="min-w-0">
+                <span className="block text-xs text-muted-foreground">Escrow <span className="font-mono">{n.escrow.id}</span></span>
+                <span className="tabular font-medium">{formatPaise(n.escrow.amount)}</span>
+              </span>
+              <StatusBadge label={n.escrow.statusLabel} tone={n.escrow.status === 'released' ? 'success' : n.escrow.status === 'pending' ? 'warning' : n.escrow.status === 'refunded' || n.escrow.status === 'cancelled' ? 'neutral' : 'info'} />
+            </Link>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -21,7 +21,7 @@ use **Demo Login**.
 ## Tests
 
 ```bash
-cd backend && python -m pytest -q        # API: auth, GSTIN, places, agent calls, RFQs, analytics, activity
+cd backend && python -m pytest -q        # API: auth, GSTIN, places, agent calls, RFQs, escrow, analytics, activity
 cd .. && npm test                          # browser-side email + GSTIN validators (same cases)
 ```
 
@@ -46,5 +46,6 @@ cd .. && npm test                          # browser-side email + GSTIN validato
 * **Passwords**: scrypt with a per-password salt. Sessions are random tokens in an httpOnly cookie; only their hash is stored. Passwords, tokens and request bodies are never logged.
 * **GSTIN**: structure, state code, PAN, holder type, entity code, `Z` and the mod-36 check character are validated (`app/validation/gstin.py`). This is format validation only; nothing is checked with the GST portal, and the UI says so. GSTIN is unique per business, full value only on the owner-only `/api/business/profile`.
 * **Agent calls** (`app/services/agent_calls.py`): one row per logical call keyed by `Idempotency-Key`. The counter increment (`calls_served = calls_served + 1`), wallet debit and success mark commit together under `BEGIN IMMEDIATE`. Failed, rejected and timed-out calls are recorded but never charged or counted.
-* **RFQs** (`app/routers/rfq.py`, `app/services/negotiation.py`): RFQ and negotiation are persisted before the response. Supplier replies come only from suppliers whose agent auto-responds; others stay "awaiting supplier response". Accepting a deal is a seller action checked against the mandate and records the agreement only. No money moves.
+* **RFQs** (`app/routers/rfq.py`, `app/services/negotiation.py`): RFQ and negotiation are persisted before the response. Supplier replies come only from suppliers whose agent auto-responds; others stay "awaiting supplier response". Accepting a deal is a seller action checked against the mandate; it opens an escrow and locks the funds if the wallet covers them.
+* **Escrow** (`app/services/escrow.py`, `/api/escrows`): one escrow per agreed negotiation (unique `negotiation_id`). `pending → locked → dispatched → delivered → released`, with `refund` from locked/dispatched and `cancel` from pending. Locking re-checks wallet balance, per-order and daily mandate limits. Every transition is a compare-and-set `UPDATE … WHERE status = …` under `BEGIN IMMEDIATE`, and a partial unique index on `wallet_txns (ref, kind)` makes a second lock, release or refund entry impossible. Ledger: lock `-amount`, release `0` (`gross_amount` = amount paid out of escrow), refund `+amount`. Confirming delivery adds the units to stock and writes a `stock_movements` row.
 * **Migrations** (`app/migrations.py`): additive, numbered, never drop data.

@@ -15,7 +15,7 @@ from ..models import AgentCall, Business, Mandate, Product, ServiceAgent, User, 
 from ..security import new_id, sign
 from ..seed import load_demo_business
 from ..services import agent_calls, intelligence
-from ..services.ledger import budget_consumed_today, get_mandate, log_activity, wallet_balance, wallet_spent_today
+from ..services.ledger import budget_consumed_today, escrow_held, get_mandate, log_activity, wallet_balance, wallet_spent_today
 
 router = APIRouter(prefix="/api", tags=["store"])
 
@@ -142,7 +142,7 @@ def put_mandate(body: MandateIn, biz: Business = Depends(current_business), db: 
 
 def txn_out(t: WalletTxn) -> dict:
     return {"id": t.id, "time": t.time.isoformat(), "counterparty": t.counterparty, "kind": t.kind, "amount": t.amount,
-            "status": t.status, "signature": t.signature, "memo": t.memo, "ref": t.ref}
+            "grossAmount": t.gross_amount, "status": t.status, "signature": t.signature, "memo": t.memo, "ref": t.ref}
 
 
 @router.get("/wallet")
@@ -151,7 +151,7 @@ def wallet(biz: Business = Depends(current_business), db: Session = Depends(get_
     db.commit()
     return {"balance": wallet_balance(db, biz.id), "spentToday": wallet_spent_today(db, biz.id),
             "dailyLimit": m.wallet_daily_limit, "budgetConsumedToday": budget_consumed_today(db, biz.id),
-            "dailyBudget": m.daily_budget}
+            "dailyBudget": m.daily_budget, "inEscrow": escrow_held(db, biz.id)}
 
 
 class TopUpIn(BaseModel):

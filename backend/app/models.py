@@ -267,6 +267,61 @@ class WalletTxn(Base):
     memo: Mapped[str] = mapped_column(String(300))
     ref: Mapped[Optional[str]] = mapped_column(String(40))
     idempotency_key: Mapped[Optional[str]] = mapped_column(String(80))
+    # Money moved by this entry when it differs from the wallet effect, e.g. an
+    # escrow release pays the supplier from escrow (wallet effect 0).
+    gross_amount: Mapped[Optional[int]] = mapped_column(Integer)
+
+
+class Escrow(Base):
+    """Funds held for one agreed negotiation until delivery.
+
+    pending -> locked -> dispatched -> delivered -> released
+    pending -> cancelled;  locked | dispatched -> refunded
+    """
+    __tablename__ = "escrows"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    negotiation_id: Mapped[str] = mapped_column(ForeignKey("negotiations.id", ondelete="CASCADE"), unique=True)
+    rfq_id: Mapped[str] = mapped_column(String(40))
+    buyer_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    supplier_id: Mapped[str] = mapped_column(ForeignKey("suppliers.id"))
+    supplier_name: Mapped[str] = mapped_column(String(120))
+    sku: Mapped[str] = mapped_column(String(40))
+    product_name: Mapped[str] = mapped_column(String(160))
+    quantity: Mapped[int] = mapped_column(Integer)
+    unit_price: Mapped[int] = mapped_column(Integer)  # paise
+    amount: Mapped[int] = mapped_column(Integer)  # paise
+    status: Mapped[str] = mapped_column(String(16), index=True)
+    status_note: Mapped[Optional[str]] = mapped_column(String(300))
+    courier: Mapped[Optional[str]] = mapped_column(String(80))
+    tracking_id: Mapped[Optional[str]] = mapped_column(String(80))
+    refund_reason: Mapped[Optional[str]] = mapped_column(String(300))
+    lock_txn_id: Mapped[Optional[str]] = mapped_column(String(40))
+    settle_txn_id: Mapped[Optional[str]] = mapped_column(String(40))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    locked_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+    dispatched_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+    delivered_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+    released_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+    refunded_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+    cancelled_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+
+
+class StockMovement(Base):
+    """Every change to a product's stock, with what caused it."""
+    __tablename__ = "stock_movements"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    sku: Mapped[str] = mapped_column(String(40), index=True)
+    delta: Mapped[int] = mapped_column(Integer)
+    resulting_stock: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(24))  # restock_receipt | sale | adjustment | import | return
+    channel: Mapped[Optional[str]] = mapped_column(String(40))
+    reason: Mapped[str] = mapped_column(String(300))
+    ref: Mapped[Optional[str]] = mapped_column(String(40))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
 
 
 class AgentCall(Base):

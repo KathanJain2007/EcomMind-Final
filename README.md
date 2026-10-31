@@ -23,7 +23,8 @@ npm run dev            # http://localhost:3000 — /api is proxied to :8000
 ```
 
 Sign up with a Gmail address, or use **Demo Login** to explore the
-UrbanNest Living sample business. All payments and escrow are simulated.
+UrbanNest Living sample business. Wallet funds are simulated top-ups; the
+ledger, escrow and mandate checks run for real on the backend.
 
 ## Tests
 

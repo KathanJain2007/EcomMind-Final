@@ -31,11 +31,22 @@ def wallet_spent_today(db: Session, business_id: int) -> int:
 
 
 def budget_consumed_today(db: Session, business_id: int) -> int:
-    """Everything counted against the daily mandate: agent calls, logistics, escrow locks."""
+    """Everything counted against the daily mandate: agent calls, logistics and
+    escrow locks, minus escrow refunded today."""
+    since = start_of_today_utc()
     debit = select(func.coalesce(func.sum(WalletTxn.amount), 0)).where(
-        WalletTxn.business_id == business_id, WalletTxn.amount < 0, WalletTxn.time >= start_of_today_utc(),
+        WalletTxn.business_id == business_id, WalletTxn.amount < 0, WalletTxn.time >= since,
     )
-    return -int(db.scalar(debit) or 0)
+    refunds = select(func.coalesce(func.sum(WalletTxn.amount), 0)).where(
+        WalletTxn.business_id == business_id, WalletTxn.kind == "refund", WalletTxn.time >= since,
+    )
+    return max(0, -int(db.scalar(debit) or 0) - int(db.scalar(refunds) or 0))
+
+
+def escrow_held(db: Session, business_id: int) -> int:
+    from ..models import Escrow
+    return int(db.scalar(select(func.coalesce(func.sum(Escrow.amount), 0)).where(
+        Escrow.business_id == business_id, Escrow.status.in_(["locked", "dispatched", "delivered"]))) or 0)
 
 
 def get_mandate(db: Session, business_id: int) -> Mandate:

@@ -68,7 +68,7 @@ def test_transactions_and_csv_exports(seller):
     for k in ["sales", "inventory", "agent-usage", "negotiations"]:
         assert seller.get(f"/api/activity/reports/{k}.csv", params={"days": 7}).status_code == 200
     cat = seller.get("/api/activity/reports", params={"days": 7}).json()
-    assert {r["id"] for r in cat["reports"]} == {"sales", "inventory", "agent-usage", "negotiations"}
+    assert {r["id"] for r in cat["reports"]} == {"sales", "inventory", "agent-usage", "negotiations", "escrow"}
 
 
 def test_wallet_is_ledger_consistent(seller):

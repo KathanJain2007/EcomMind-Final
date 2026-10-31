@@ -16,8 +16,9 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import current_business
 from ..errors import ApiError
-from ..models import RFQ, ActivityEvent, AgentCall, Business, Negotiation, Product, SalesDaily, ServiceAgent, WalletTxn
+from ..models import RFQ, ActivityEvent, AgentCall, Business, Escrow, Negotiation, Product, SalesDaily, ServiceAgent, WalletTxn
 from ..services import intelligence
+from ..services.ledger import escrow_held
 
 router = APIRouter(prefix="/api/activity", tags=["activity"])
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -158,7 +159,7 @@ def _txn_query(biz: Business, rng: Range, kind: str | None, status: str | None, 
 
 def txn_out(t: WalletTxn) -> dict:
     return {"id": t.id, "time": _iso(t.time), "counterparty": t.counterparty, "kind": t.kind, "amount": t.amount,
-            "status": t.status, "signature": t.signature, "memo": t.memo, "ref": t.ref}
+            "grossAmount": t.gross_amount, "status": t.status, "signature": t.signature, "memo": t.memo, "ref": t.ref}
 
 
 @router.get("/transactions")
@@ -240,6 +241,7 @@ REPORTS = {
     "inventory": "Inventory Report",
     "agent-usage": "Agent Usage & Spending Report",
     "negotiations": "Supplier Negotiation Report",
+    "escrow": "Escrow Report",
 }
 
 
@@ -256,7 +258,8 @@ def reports(days: int = Query(default=30, ge=1, le=365), biz: Business = Depends
         WalletTxn.time >= datetime.combine(since, time(0), IST).astimezone(timezone.utc))) or 0
     risk = intelligence.return_risk(db, biz.id)
     return {"days": days, "reports": [{"id": k, "title": v, "rows": counts[k]} for k, v in REPORTS.items()],
-            "snapshot": {"revenue": int(revenue), "agentSpend": -int(spend), "highRiskPincodes": len(risk["highRisk"])}}
+            "snapshot": {"revenue": int(revenue), "agentSpend": -int(spend), "highRiskPincodes": len(risk["highRisk"]),
+                         "inEscrow": escrow_held(db, biz.id)}}
 
 
 def _report_rows(key: str, days: int, biz: Business, db: Session) -> tuple[list[str], list[list]]:
@@ -294,6 +297,15 @@ def _report_rows(key: str, days: int, biz: Business, db: Session) -> tuple[list[
         return (["Negotiation", "RFQ", "Supplier", "SKU", "Quantity", "Target (INR)", "Latest offer (INR)", "Agreed (INR)", "Status", "Created"],
                 [[n.id, r.id, r.supplier_name, n.sku, n.quantity, rupees(r.target_unit_price), rupees(n.latest_supplier_price),
                   rupees(n.agreed_unit_price), n.status, _iso(n.created_at)] for n, r in rows])
+    if key == "escrow":
+        start = datetime.combine(since, time(0), IST).astimezone(timezone.utc)
+        rows = db.scalars(select(Escrow).where(Escrow.business_id == biz.id, Escrow.created_at >= start)
+                          .order_by(Escrow.created_at.desc())).all()
+        return (["Escrow", "Negotiation", "Supplier", "SKU", "Product", "Quantity", "Amount (INR)", "Status", "Created",
+                 "Locked", "Dispatched", "Delivered", "Released", "Refunded", "Refund reason"],
+                [[e.id, e.negotiation_id, e.supplier_name, e.sku, e.product_name, e.quantity, rupees(e.amount), e.status,
+                  _iso(e.created_at), _iso(e.locked_at), _iso(e.dispatched_at), _iso(e.delivered_at), _iso(e.released_at),
+                  _iso(e.refunded_at), e.refund_reason or ""] for e in rows])
     raise ApiError(404, "report_not_found", "Unknown report.")
 
 
