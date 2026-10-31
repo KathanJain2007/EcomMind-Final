@@ -46,7 +46,9 @@ def _msg(db: Session, neg: Negotiation, sender: str, kind: str, text: str, price
 
 
 def _quote(db: Session, supplier_id: str, sku: str) -> SupplierQuote | None:
-    return db.scalar(select(SupplierQuote).where(SupplierQuote.supplier_id == supplier_id, SupplierQuote.sku == sku))
+    # The supplier agent answers from its own network quote, never from a seller's imported one.
+    return db.scalar(select(SupplierQuote).where(SupplierQuote.supplier_id == supplier_id, SupplierQuote.sku == sku,
+                                                 SupplierQuote.business_id.is_(None)))
 
 
 def supplier_receive_rfq(db: Session, neg: Negotiation, rfq: RFQ, supplier: Supplier) -> None:
@@ -217,7 +219,7 @@ def create_rfq(db: Session, business_id: int, user_id: int, *, supplier_id: str,
     if existing:
         return existing, db.scalar(select(Negotiation).where(Negotiation.rfq_id == existing.id)), True
     supplier = db.get(Supplier, supplier_id)
-    if not supplier:
+    if not supplier or (supplier.business_id is not None and supplier.business_id != business_id):
         raise ApiError(404, "supplier_not_found", "That supplier doesn't exist.", field="supplierId")
     sku = sku.upper()
     product = db.scalar(select(Product).where(Product.business_id == business_id, Product.sku == sku))

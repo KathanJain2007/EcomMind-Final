@@ -89,6 +89,20 @@ def _m7_approvals(conn: Connection) -> None:
     )
 
 
+def _m8_imports(conn: Connection) -> None:
+    # import_batches is a new table (created by create_all).
+    _add_column(conn, "suppliers", "business_id", "INTEGER REFERENCES businesses(id) ON DELETE CASCADE")
+    _add_column(conn, "supplier_quotes", "business_id", "INTEGER REFERENCES businesses(id) ON DELETE CASCADE")
+    _add_column(conn, "supplier_quotes", "source", "VARCHAR(16) DEFAULT 'network'")
+    _add_column(conn, "supplier_quotes", "updated_at", "DATETIME")
+    _add_column(conn, "logistics_quotes", "business_id", "INTEGER REFERENCES businesses(id) ON DELETE CASCADE")
+    # The same file can't be imported twice into the same dataset.
+    conn.exec_driver_sql(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_import_once ON import_batches (business_id, dataset, content_sha256) "
+        "WHERE status = 'completed'"
+    )
+
+
 MIGRATIONS: list[tuple[int, Callable[[Connection], None]]] = [
     (1, _m1_gstin_and_location),
     (2, _m2_wallet_daily_limit),
@@ -97,6 +111,7 @@ MIGRATIONS: list[tuple[int, Callable[[Connection], None]]] = [
     (5, _m5_repricing),
     (6, _m6_marketplace),
     (7, _m7_approvals),
+    (8, _m8_imports),
 ]
 
 

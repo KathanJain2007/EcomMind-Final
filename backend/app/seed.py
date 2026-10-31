@@ -16,7 +16,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .models import (
-    RFQ, ActivityEvent, AgentCall, Approval, Business, CompetitorPrice, Escrow, LogisticsQuote, Mandate, Negotiation,
+    RFQ, ActivityEvent, AgentCall, Approval, ImportBatch, Business, CompetitorPrice, Escrow, LogisticsQuote, Mandate, Negotiation,
     MarketplaceListing, MarketplaceOrder, NegotiationMessage, PriceChange, Product, ReturnStat, SalesDaily, ServiceAgent, StockMovement, Supplier, SupplierQuote, User,
     WalletTxn,
 )
@@ -146,8 +146,10 @@ def load_demo_business(db: Session, business: Business, user: User) -> None:
     # and escrow balances only make sense next to the ledger that funded them.
     neg_ids = select(Negotiation.id).where(Negotiation.business_id == bid)
     db.execute(delete(NegotiationMessage).where(NegotiationMessage.negotiation_id.in_(neg_ids)))
-    for model in (Approval, Escrow, StockMovement, PriceChange, MarketplaceOrder, MarketplaceListing, Negotiation, RFQ, SalesDaily, ReturnStat, CompetitorPrice, WalletTxn,
+    for model in (ImportBatch, Approval, Escrow, StockMovement, PriceChange, MarketplaceOrder, MarketplaceListing, Negotiation, RFQ, SalesDaily, ReturnStat, CompetitorPrice, WalletTxn,
                   ActivityEvent, AgentCall, Product):
+        db.execute(delete(model).where(model.business_id == bid))
+    for model in (SupplierQuote, LogisticsQuote, Supplier):  # the seller's own imported network data
         db.execute(delete(model).where(model.business_id == bid))
 
     for p in DEMO_PRODUCTS:

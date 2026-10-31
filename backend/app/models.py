@@ -182,6 +182,8 @@ class LogisticsQuote(Base):
     eta_days: Mapped[int] = mapped_column(Integer)
     rating: Mapped[float] = mapped_column(Float)
     cod: Mapped[bool] = mapped_column(Boolean)
+    # NULL = shared network quote; set = imported by that seller and visible only to them
+    business_id: Mapped[Optional[int]] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
 
 
 class ServiceAgent(Base):
@@ -216,6 +218,8 @@ class Supplier(Base):
     # True when the supplier agent answers RFQs automatically. Otherwise an RFQ
     # waits in "awaiting supplier response" until a real reply arrives.
     auto_respond: Mapped[bool] = mapped_column(Boolean, default=True)
+    # NULL = supplier on the shared network; set = a seller's own supplier from an import
+    business_id: Mapped[Optional[int]] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
 
 
 class SupplierQuote(Base):
@@ -230,6 +234,10 @@ class SupplierQuote(Base):
     moq: Mapped[int] = mapped_column(Integer)
     available: Mapped[int] = mapped_column(Integer)
     valid_till: Mapped[date] = mapped_column(Date)
+    # NULL = the supplier agent's network quote; set = a quote the seller imported (private to them)
+    business_id: Mapped[Optional[int]] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    source: Mapped[str] = mapped_column(String(16), default="network")  # network | import
+    updated_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
 
 
 # --------------------------------------------------------------------------- money + agents
@@ -411,6 +419,28 @@ class Approval(Base):
     executed_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
     result: Mapped[Optional[dict]] = mapped_column(JSON)
     last_error: Mapped[Optional[str]] = mapped_column(String(500))
+
+
+class ImportBatch(Base):
+    """One uploaded dataset (a CSV file or one sheet of a workbook) and what happened to its rows."""
+    __tablename__ = "import_batches"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    dataset: Mapped[str] = mapped_column(String(24))  # products | sales | returns | supplier_quotes | logistics | mandate
+    file_name: Mapped[str] = mapped_column(String(200))
+    sheet: Mapped[Optional[str]] = mapped_column(String(100))
+    content_sha256: Mapped[str] = mapped_column(String(64))
+    source: Mapped[str] = mapped_column(String(16), default="import_page")  # import_page | onboarding
+    status: Mapped[str] = mapped_column(String(12))  # completed | failed
+    rows_total: Mapped[int] = mapped_column(Integer, default=0)
+    rows_created: Mapped[int] = mapped_column(Integer, default=0)
+    rows_updated: Mapped[int] = mapped_column(Integer, default=0)
+    rows_unchanged: Mapped[int] = mapped_column(Integer, default=0)
+    rows_failed: Mapped[int] = mapped_column(Integer, default=0)
+    errors: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
 
 
 class StockMovement(Base):

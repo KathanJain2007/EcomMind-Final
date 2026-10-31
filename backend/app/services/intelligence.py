@@ -145,8 +145,10 @@ def return_risk(db: Session, business_id: int, sku: str | None = None) -> dict:
     }
 
 
-def logistics_ranking(db: Session) -> dict:
-    quotes = db.scalars(select(LogisticsQuote)).all()
+def logistics_ranking(db: Session, business_id: int | None = None) -> dict:
+    from sqlalchemy import or_
+    quotes = db.scalars(select(LogisticsQuote).where(or_(LogisticsQuote.business_id.is_(None),
+                                                         LogisticsQuote.business_id == business_id))).all()
     if not quotes:
         return {"quotes": [], "recommended": None}
     max_cost = max(q.cost_per_500g for q in quotes)

@@ -6,7 +6,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import or_, func, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -142,8 +142,8 @@ def returns(biz: Business = Depends(current_business), db: Session = Depends(get
 
 
 @router.get("/logistics")
-def logistics(_: Business = Depends(current_business), db: Session = Depends(get_db)):
-    return intelligence.logistics_ranking(db)
+def logistics(biz: Business = Depends(current_business), db: Session = Depends(get_db)):
+    return intelligence.logistics_ranking(db, biz.id)
 
 
 @router.get("/recommendations")
@@ -158,7 +158,8 @@ def recommendations(biz: Business = Depends(current_business), db: Session = Dep
         if status not in ("Critical", "Low Stock", "Out of Stock"):
             continue
         f = intelligence.forecast(db, p)
-        quote = db.scalar(select(SupplierQuote).where(SupplierQuote.sku == p.sku).order_by(SupplierQuote.unit_price))
+        quote = db.scalar(select(SupplierQuote).where(SupplierQuote.sku == p.sku, or_(SupplierQuote.business_id.is_(None),
+                          SupplierQuote.business_id == biz.id)).order_by(SupplierQuote.unit_price))
         lost = max(0, f["demand30"] - p.stock) * p.price
         out.append({
             "id": f"restock-{p.sku}", "priority": "High" if status != "Low Stock" else "Medium", "sku": p.sku,

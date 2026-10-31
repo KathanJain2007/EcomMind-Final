@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { LocationAutocomplete } from '@/components/LocationAutocomplete'
 import { locationProblem, type PlaceValue } from '@/lib/place'
 import { api, ApiError, type MeResponse } from '@/lib/api'
+import { summarize, uploadImport } from '@/lib/imports'
 import { gstinLiveError, normalizeGstin, validateGstin } from '@/lib/validation/gstin'
 import { INDIAN_STATE_CODES } from '@/data/models'
 import { cx } from '@/lib/format'
@@ -28,6 +29,7 @@ export default function Onboarding() {
   const [saving, setSaving] = useState(false)
   const [verificationRequired, setVerificationRequired] = useState(false)
   const [form, setForm] = useState({ business: auth.storeName || '', category: '', channel: '', currency: 'INR (₹)', gstin: '', fileName: '', businessType: 'Proprietorship' })
+  const [file, setFile] = useState<File | null>(null)
   const [location, setLocation] = useState<PlaceValue>({ text: '', placeId: null, sessionToken: null, verified: false })
   const [errors, setErrors] = useState<{ gstin?: string; location?: string; business?: string; form?: string }>({})
 
@@ -68,8 +70,18 @@ export default function Onboarding() {
         },
       })
       setMe(res)
-      toast.success('Setup complete', { description: 'Your autonomous economy is ready. Load the demo business to explore.' })
-      if (form.fileName) toast.info('Inventory file not uploaded yet', { description: `Open Import Data to upload ${form.fileName}.` })
+      toast.success('Setup complete', { description: file ? 'Importing your inventory file…' : 'Your autonomous economy is ready. Load the demo business to explore.' })
+      if (file) {
+        // Same import service as the Import Data page.
+        try {
+          const batches = await uploadImport(file, { dataset: file.name.toLowerCase().endsWith('.xlsx') ? undefined : 'products', source: 'onboarding' })
+          const failed = batches.reduce((n, b) => n + b.failed, 0)
+          const fn = failed ? toast.warning : toast.success
+          fn('Inventory imported', { description: `${batches.map(summarize).join(' ')}${failed ? ' See Import Data for the skipped rows.' : ''}` })
+        } catch (err) {
+          toast.error('Inventory file not imported', { description: `${err instanceof ApiError ? err.message : 'Try again'} You can upload it from Import Data.` })
+        }
+      }
       navigate('/')
     } catch (e) {
       if (e instanceof ApiError && (e.field === 'gstin' || e.field === 'location')) {
@@ -191,7 +203,7 @@ export default function Onboarding() {
       {step === 2 && (
         <div className="space-y-4">
           <h2 className="text-2xl font-semibold tracking-tight">Upload your inventory</h2>
-          <p className="text-sm text-muted-foreground">Optional — you can also do this later from the Import Center.</p>
+          <p className="text-sm text-muted-foreground">Optional — it’s imported into your catalogue when you finish setup, using the same import as the Import Data page. Columns: sku, name, price, cost, stock (category and avg_daily_sales optional).</p>
           <label
             htmlFor="ob-file"
             className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/50 px-6 py-10 text-center transition-colors hover:border-brand/50"
@@ -199,7 +211,7 @@ export default function Onboarding() {
             <Upload className="mb-2 h-6 w-6 text-muted-foreground" aria-hidden />
             <span className="text-sm font-medium">{form.fileName || 'Drop Products.csv here, or click to browse'}</span>
             <span className="mt-1 text-xs text-muted-foreground">CSV or XLSX, up to 10 MB</span>
-            <input id="ob-file" type="file" accept=".csv,.xlsx" className="sr-only" onChange={(e) => setForm({ ...form, fileName: e.target.files?.[0]?.name ?? '' })} />
+            <input id="ob-file" type="file" accept=".csv,.xlsx" className="sr-only" onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); setForm({ ...form, fileName: f?.name ?? '' }) }} />
           </label>
         </div>
       )}

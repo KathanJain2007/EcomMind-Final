@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -35,26 +35,32 @@ STATUS_LABELS = {
 def quote_out(q: SupplierQuote) -> dict:
     # floor_price is the supplier agent's private limit and is never exposed.
     return {"id": q.id, "supplierId": q.supplier_id, "sku": q.sku, "unitPrice": q.unit_price, "deliveryDays": q.delivery_days,
-            "moq": q.moq, "available": q.available, "validTill": q.valid_till.isoformat()}
+            "moq": q.moq, "available": q.available, "validTill": q.valid_till.isoformat(),
+            "source": q.source or "network", "imported": q.business_id is not None}
 
 
 def supplier_out(s: Supplier, quotes: list[SupplierQuote]) -> dict:
     return {"id": s.id, "name": s.name, "agentId": s.agent_id, "location": s.location, "rating": s.rating,
-            "reviews": s.reviews, "verified": s.verified, "autoRespond": s.auto_respond,
+            "reviews": s.reviews, "verified": s.verified, "autoRespond": s.auto_respond, "imported": s.business_id is not None,
             "catalogue": [q.sku for q in quotes], "quotes": [quote_out(q) for q in quotes]}
 
 
+def _visible(model, biz: Business):
+    """Shared network rows plus this seller's own imported rows."""
+    return or_(model.business_id.is_(None), model.business_id == biz.id)
+
+
 @router.get("/suppliers")
-def suppliers(_: User = Depends(current_user), db: Session = Depends(get_db)):
-    sups = db.scalars(select(Supplier).order_by(Supplier.id)).all()
-    quotes = db.scalars(select(SupplierQuote).order_by(SupplierQuote.id)).all()
+def suppliers(biz: Business = Depends(current_business), db: Session = Depends(get_db)):
+    sups = db.scalars(select(Supplier).where(_visible(Supplier, biz)).order_by(Supplier.id)).all()
+    quotes = db.scalars(select(SupplierQuote).where(_visible(SupplierQuote, biz)).order_by(SupplierQuote.id)).all()
     return {"suppliers": [supplier_out(s, [q for q in quotes if q.supplier_id == s.id]) for s in sups]}
 
 
 @router.get("/supplier-quotes")
 def supplier_quotes(sku: str | None = None, maxPrice: int | None = Query(default=None, ge=0), maxDays: int | None = Query(default=None, ge=0),
-                    _: User = Depends(current_user), db: Session = Depends(get_db)):
-    q = select(SupplierQuote).order_by(SupplierQuote.id)
+                    biz: Business = Depends(current_business), db: Session = Depends(get_db)):
+    q = select(SupplierQuote).where(_visible(SupplierQuote, biz)).order_by(SupplierQuote.id)
     if sku and sku != "All":
         q = q.where(SupplierQuote.sku == sku.upper())
     if maxPrice is not None:

@@ -50,7 +50,7 @@ def _exec_return(db: Session, biz: Business, product: Product) -> dict:
 
 
 def _exec_logistics(db: Session, biz: Business, product: Product) -> dict:
-    r = intelligence.logistics_ranking(db)
+    r = intelligence.logistics_ranking(db, biz.id)
     return {"kind": "logistics_quote", "quotes": r["quotes"][:3], "recommended": r["recommended"]}
 
 
