@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 226 49% 8%;          /* #0B1020 */
+    --foreground: 210 40% 98%;         /* #F8FAFC */
+    --card: 222 42% 14%;               /* #151E33 */
+    --card-foreground: 210 40% 98%;
+    --popover: 222 45% 12%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 248 85% 67%;            /* #7965F2 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 221 41% 18%;          /* #1B2740 */
+    --secondary-foreground: 210 40% 98%;
+    --muted: 221 41% 18%;
+    --muted-foreground: 215 20% 65%;   /* #94A3B8 */
+    --accent: 221 41% 20%;
+    --accent-foreground: 248 100% 85%;
+    --destructive: 0 84% 60%;          /* #EF4444 */
+    --destructive-foreground: 0 0% 98%;
+    --success: 142 71% 45%;            /* #22C55E */
+    --warning: 38 92% 50%;             /* #F59E0B */
+    --border: 221 33% 23%;             /* #27334D */
+    --input: 221 33% 23%;
+    --ring: 248 85% 67%;
+    --radius: 0.75rem;
+    --sidebar-background: 224 45% 11%; /* #10172A */
+    --sidebar-foreground: 215 20% 65%;
+    --sidebar-primary: 248 85% 67%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 221 41% 18%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 221 33% 20%;
+    --sidebar-ring: 248 85% 67%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "cv11", "ss01";
+  }
+  .font-mono,
+  code {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+  }
+  ::selection {
+    background: hsl(248 85% 67% / 0.35);
+  }
+  /* Scrollbars */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(221 33% 25%);
+    border-radius: 8px;
+    border: 2px solid hsl(226 49% 8%);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(221 33% 32%);
+  }
+}
+
+@layer components {
+  .card-surface {
+    @apply rounded-xl border border-border bg-card shadow-[0_1px_3px_rgba(2,6,23,0.4)];
+  }
+  .card-hover {
+    @apply transition-all duration-200 hover:border-[hsl(248_60%_55%/0.5)] hover:shadow-[0_4px_20px_rgba(2,6,23,0.5)];
+  }
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(120deg, #9a8bff 0%, #7965f2 55%, #5f8bff 100%);
+  }
+  .btn-glow {
+    background-image: linear-gradient(120deg, #8f7bff 0%, #7965f2 60%, #6a5ae0 100%);
+    box-shadow: 0 4px 18px -4px hsl(248 85% 67% / 0.55);
+  }
+  .btn-glow:hover {
+    background-image: linear-gradient(120deg, #9a8bff 0%, #8574f5 60%, #7965f2 100%);
+    box-shadow: 0 6px 24px -4px hsl(248 85% 67% / 0.65);
+  }
+  .panel-grid {
+    background-image:
+      linear-gradient(hsl(221 33% 23% / 0.35) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(221 33% 23% / 0.35) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  .skeleton-shimmer {
+    @apply animate-pulse rounded-md bg-secondary;
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Recharts polish */
+.recharts-cartesian-axis-tick text {
+  fill: #94a3b8;
+  font-size: 11px;
+  font-family: "Inter", sans-serif;
+}
+.recharts-tooltip-cursor {
+  fill: hsl(221 41% 18% / 0.5);
+}
