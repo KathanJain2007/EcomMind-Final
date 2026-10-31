@@ -59,6 +59,7 @@ export default function ImportData() {
   const afterImport = (batches: ImportBatch[]) => {
     setResults((prev) => [...batches, ...prev].slice(0, 12))
     store.invalidate('products', 'analytics', 'orders', 'mandate', 'suppliers', 'activity')
+    historyQ.reload()
     for (const b of batches) {
       const fn = b.duplicate ? toast.info : b.status === 'failed' ? toast.error : b.failed ? toast.warning : toast.success
       fn(b.duplicate ? 'Already imported' : b.status === 'failed' ? `${b.datasetLabel}: nothing imported` : `${b.datasetLabel} imported`, {
@@ -76,9 +77,7 @@ export default function ImportData() {
         const lower = file.name.toLowerCase()
         if (!lower.endsWith('.csv') && !lower.endsWith('.xlsx')) { toast.error(`${file.name}: upload CSV or XLSX files only`); continue }
         try {
-          // Filenames and sheet names choose the dataset; otherwise the selected card does.
-          const named = /product|inventory|catalog|sales|return|supplier|quote|logistic|courier|mandate/.test(lower)
-          afterImport(await uploadImport(file, { dataset: lower.endsWith('.csv') && !named ? target : undefined }))
+          afterImport(await uploadImport(file, { dataset: target }))
         } catch (e) {
           toast.error(`${file.name} wasn’t imported`, { description: e instanceof ApiError ? e.message : undefined })
         }

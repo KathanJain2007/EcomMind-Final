@@ -57,7 +57,7 @@ export default function Festivals() {
     }
   }
 
-  if (!demoLoaded) {
+  if (!demoLoaded && allProducts.length === 0) {
     return (
       <>
         <PageHeader title="Festival Intelligence & Automated Discounts" subtitle="AI seasonal forecasting for Indian festivals and marketplace mega sales." />

@@ -58,12 +58,41 @@ DATASETS: dict[str, dict] = {
 ORDER = ["products", "mandate", "logistics", "supplier_quotes", "sales", "returns"]  # products first: others refer to SKUs
 
 ALIASES = {
+    # Products
+    "product": "name", "product_name": "name", "item": "name", "item_name": "name",
+    "title": "name", "description": "name", "item_code": "sku", "product_code": "sku",
+    "sku_code": "sku", "barcode": "sku", "selling_price": "price", "sale_price": "price",
+    "retail_price": "price", "mrp": "price", "listing_price": "price", "unit_cost": "cost",
+    "cost_price": "cost", "purchase_price": "cost", "buy_price": "cost", "cogs": "cost",
+    "inventory": "stock", "available_stock": "stock", "stock_quantity": "stock",
+    "quantity_on_hand": "stock", "qty_on_hand": "stock", "on_hand": "stock", "in_stock": "stock",
+    "category_name": "category", "department": "category",
     "avg_sales": "avg_daily_sales", "daily_sales": "avg_daily_sales", "average_daily_sales": "avg_daily_sales",
-    "selling_price": "price", "mrp": "price", "unit_cost": "cost", "cost_price": "cost", "quantity": "units",
-    "qty": "units", "units_sold": "units", "product_name": "name", "title": "name", "supplier_name": "supplier",
-    "price_per_unit": "unit_price", "quote": "unit_price", "lead_time_days": "delivery_days", "pin": "pincode",
-    "pin_code": "pincode", "eta": "eta_days", "cost_500g": "cost_per_500g", "available": "available_qty",
-    "valid_till": "valid_until",
+    "ads": "avg_daily_sales", "return_pct": "return_rate", "return_percentage": "return_rate",
+    "returns_rate": "return_rate",
+    # Sales
+    "quantity": "units", "qty": "units", "units_sold": "units", "quantity_sold": "units", "volume": "units",
+    "order_date": "date", "sale_date": "date", "sales_date": "date", "day": "date", "transaction_date": "date",
+    "total_orders": "orders", "order_count": "orders", "no_of_orders": "orders",
+    "sales": "revenue", "total_sales": "revenue", "gross_revenue": "revenue", "amount": "revenue", "order_value": "revenue",
+    # Returns
+    "pin": "pincode", "pin_code": "pincode", "postal_code": "pincode", "zip": "pincode", "zip_code": "pincode", "zipcode": "pincode",
+    "return_count": "returns", "returned_units": "returns", "returned_orders": "returns", "total_returns": "returns",
+    "rto": "returns", "rto_count": "returns", "rto_orders": "returns",
+    # Supplier quotes
+    "supplier_name": "supplier", "vendor": "supplier", "vendor_name": "supplier", "seller": "supplier",
+    "price_per_unit": "unit_price", "quote": "unit_price", "quoted_price": "unit_price", "rate": "unit_price",
+    "lead_time_days": "delivery_days", "lead_time": "delivery_days", "delivery_time": "delivery_days",
+    "min_order_qty": "moq", "min_qty": "moq", "minimum_order_quantity": "moq",
+    "available": "available_qty", "valid_till": "valid_until", "expiry": "valid_until", "validity": "valid_until",
+    # Logistics
+    "courier_name": "courier", "carrier": "courier", "logistics_partner": "courier", "delivery_partner": "courier", "provider": "courier",
+    "cost_500g": "cost_per_500g", "rate_500g": "cost_per_500g", "rate_per_500g": "cost_per_500g", "cost_per_half_kg": "cost_per_500g",
+    "shipping_rate": "cost_per_500g", "shipping_cost": "cost_per_500g",
+    "eta": "eta_days", "estimated_days": "eta_days", "tat": "eta_days", "tat_days": "eta_days", "sla_days": "eta_days",
+    # Mandate
+    "budget": "daily_budget", "daily_spending_limit": "daily_budget", "max_order": "max_order_value", "max_order_limit": "max_order_value",
+    "per_call_cost": "max_per_call_cost", "max_call_cost": "max_per_call_cost",
 }
 
 SKU_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$")
@@ -135,16 +164,36 @@ def parse_xlsx(content: bytes) -> dict[str, list[dict[str, str]]]:
     return out
 
 
+def _effective_cols(columns: list[str]) -> set[str]:
+    cols = set(columns)
+    if "units" in cols or "quantity" in cols or "qty" in cols:
+        cols.add("units")
+        cols.add("stock")
+    if "price" in cols or "unit_price" in cols:
+        cols.add("price")
+        cols.add("unit_price")
+    if "delivery_days" in cols or "eta_days" in cols:
+        cols.add("delivery_days")
+        cols.add("eta_days")
+    return cols
+
+
 def detect_dataset(name: str, columns: Optional[list[str]] = None) -> Optional[str]:
+    # 1. Match by columns first when provided (most definitive signal)
+    if columns:
+        cols = _effective_cols(columns)
+        matches = [k for k, d in DATASETS.items() if set(d["required"]) <= cols]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            matches.sort(key=lambda k: len(DATASETS[k]["required"]), reverse=True)
+            return matches[0]
+
+    # 2. Fall back to filename or sheet name keywords
     n = name.lower()
     for key in ("products", "sales", "returns", "logistics", "mandate", "supplier_quotes"):  # most specific first
         if any(m in n for m in DATASETS[key]["match"]):
             return key
-    if columns:
-        cols = set(columns)
-        best = [k for k, d in DATASETS.items() if set(d["required"]) <= cols]
-        if len(best) == 1:
-            return best[0]
     return None
 
 
@@ -152,7 +201,10 @@ def detect_dataset(name: str, columns: Optional[list[str]] = None) -> Optional[s
 
 def _num(row: dict, col: str, *, required: bool = True, minimum: Optional[float] = None, integer: bool = False,
          gt: Optional[float] = None) -> Optional[float]:
-    raw = (row.get(col) or "").replace(",", "").replace("₹", "").strip()
+    raw = (row.get(col) or "").strip()
+    raw = raw.replace(",", "").replace("₹", "").replace("$", "").strip()
+    raw = re.sub(r"^(rs\.?|inr)\s*", "", raw, flags=re.IGNORECASE).strip()
+    raw = re.sub(r"\s*/-\s*$", "", raw).strip()
     if raw == "":
         if required:
             raise RowError(f'"{col}" is empty')
@@ -194,11 +246,18 @@ def _date(row: dict, col: str, required: bool = True) -> Optional[date]:
         if required:
             raise RowError(f'"{col}" is empty')
         return None
-    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d", "%d.%m.%Y", "%Y-%m-%d %H:%M:%S"):
-        try:
-            return datetime.strptime(raw, fmt).date()
-        except ValueError:
-            continue
+    cleaned = raw.split("T")[0].strip() if "T" in raw else raw
+    for fmt in (
+        "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%m/%d/%Y", "%Y/%m/%d", "%d.%m.%Y", "%m.%d.%Y",
+        "%Y-%m-%d %H:%M:%S", "%d-%m-%Y %H:%M:%S", "%d/%m/%Y %H:%M:%S", "%m/%d/%Y %H:%M:%S",
+        "%Y-%m-%d %H:%M", "%d-%m-%Y %H:%M", "%d/%m/%Y %H:%M",
+        "%d-%b-%Y", "%d-%b-%y", "%d %b %Y", "%d %b %y",
+    ):
+        for candidate in (raw, cleaned):
+            try:
+                return datetime.strptime(candidate, fmt).date()
+            except ValueError:
+                continue
     raise RowError(f'"{col}" isn\'t a date (use YYYY-MM-DD or DD-MM-YYYY; got "{raw}")')
 
 
@@ -233,8 +292,9 @@ def _products(ctx: Ctx, rows: list[dict], fail: Callable[[int, str], None]) -> N
                 raise RowError(f'SKU "{sku}" appears more than once in this file')
             name = _text(row, "name", 160)
             price = _paise(row, "price", gt=0)
-            cost = _paise(row, "cost", minimum=0)
-            stock = int(_num(row, "stock", minimum=0, integer=True))
+            cost = _paise(row, "cost", required=False, minimum=0) or 0
+            stock_num = _num(row, "stock", required=False, minimum=0, integer=True)
+            stock = int(stock_num) if stock_num is not None else 0
             avg = _num(row, "avg_daily_sales", required=False, minimum=0)
             rr = _num(row, "return_rate", required=False, minimum=0)
             if rr is not None and rr > 1:
@@ -345,7 +405,7 @@ def _returns(ctx: Ctx, rows: list[dict], fail: Callable[[int, str], None]) -> No
     seen: set[tuple] = set()
     for i, row in enumerate(rows, start=2):
         try:
-            pin = _text(row, "pincode", 10)
+            pin = re.sub(r"[\s\-]", "", _text(row, "pincode", 10))
             if not PIN_RE.match(pin):
                 raise RowError(f'"{pin}" isn\'t a 6-digit Indian pincode')
             p = _sku(row, cat)
@@ -525,6 +585,47 @@ def _run_one(db: Session, business_id: int, user_id: Optional[int], user_name: s
 
     spec = DATASETS[dataset]
     cols = set(rows[0].keys()) if rows else set()
+
+    # Dataset-specific column fallbacks
+    if dataset == "products":
+        if "stock" not in cols:
+            for alt in ("units", "quantity", "qty", "inventory", "available"):
+                if alt in cols:
+                    for r in rows:
+                        r["stock"] = r[alt]
+                    cols.add("stock")
+                    break
+        if "price" not in cols and "unit_price" in cols:
+            for r in rows:
+                r["price"] = r["unit_price"]
+            cols.add("price")
+    elif dataset == "sales":
+        if "units" not in cols:
+            for alt in ("stock", "quantity", "qty", "volume"):
+                if alt in cols:
+                    for r in rows:
+                        r["units"] = r[alt]
+                    cols.add("units")
+                    break
+    elif dataset == "supplier_quotes":
+        if "unit_price" not in cols and "price" in cols:
+            for r in rows:
+                r["unit_price"] = r["price"]
+            cols.add("unit_price")
+        if "delivery_days" not in cols and "eta_days" in cols:
+            for r in rows:
+                r["delivery_days"] = r["eta_days"]
+            cols.add("delivery_days")
+    elif dataset == "logistics":
+        if "cost_per_500g" not in cols and "cost" in cols:
+            for r in rows:
+                r["cost_per_500g"] = r["cost"]
+            cols.add("cost_per_500g")
+        if "eta_days" not in cols and "delivery_days" in cols:
+            for r in rows:
+                r["eta_days"] = r["delivery_days"]
+            cols.add("eta_days")
+
     missing = [c for c in spec["required"] if c not in cols]
     ctx = Ctx(db, business_id, user_name)
     if not rows:
@@ -576,7 +677,8 @@ def import_file(db: Session, business_id: int, user_id: Optional[int], user_name
     jobs: list[tuple[str, list[dict], Optional[str]]] = []
     if name.endswith(".csv"):
         rows = parse_csv(content)
-        ds = dataset or detect_dataset(name, list(rows[0].keys()) if rows else None)
+        cols = list(rows[0].keys()) if rows else None
+        ds = detect_dataset(name, cols) or dataset
         if not ds:
             raise ApiError(422, "unknown_dataset", "Couldn't tell which dataset this file is. Choose one, or name the file "
                                                    "like Products.csv, Sales_History.csv, Returns.csv or Supplier_Quotes.csv.")
@@ -584,14 +686,19 @@ def import_file(db: Session, business_id: int, user_id: Optional[int], user_name
     elif name.endswith(".xlsx"):
         sheets = parse_xlsx(content)
         for sheet, rows in sheets.items():
-            ds = detect_dataset(sheet, list(rows[0].keys()) if rows else None)
+            cols = list(rows[0].keys()) if rows else None
+            ds = detect_dataset(sheet, cols)
             if ds is None and dataset and len(sheets) == 1:
                 ds = dataset
             if ds:
                 jobs.append((ds, rows, sheet))
         if not jobs:
-            raise ApiError(422, "no_matching_sheets", "No sheet matched a dataset. Name sheets Products, Sales, Returns, "
-                                                      "Supplier Quotes, Logistics or Mandate.")
+            if dataset and sheets:
+                first_sheet = next(iter(sheets))
+                jobs.append((dataset, sheets[first_sheet], first_sheet))
+            else:
+                raise ApiError(422, "no_matching_sheets", "No sheet matched a dataset. Name sheets Products, Sales, Returns, "
+                                                          "Supplier Quotes, Logistics or Mandate.")
     else:
         raise ApiError(415, "unsupported_format", "Upload a .csv or .xlsx file.")
     jobs.sort(key=lambda j: ORDER.index(j[0]))

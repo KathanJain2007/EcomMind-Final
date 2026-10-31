@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 import { ArrowLeft, ArrowRight, Check, Loader2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { useApp } from '@/store/AppContext'
+import { useDataStore } from '@/store/DataStore'
 import { AuthShell } from './AuthShell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,7 +24,8 @@ const CURRENCIES = ['INR (₹)', 'USD ($)']
 const BUSINESS_TYPES = ['Proprietorship', 'Partnership', 'Private Limited', 'LLP', 'Public Limited']
 
 export default function Onboarding() {
-  const { auth, me, setMe } = useApp()
+  const { auth, me, setMe, refreshMe } = useApp()
+  const store = useDataStore()
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -74,7 +76,7 @@ export default function Onboarding() {
       if (file) {
         // Same import service as the Import Data page.
         try {
-          const batches = await uploadImport(file, { dataset: file.name.toLowerCase().endsWith('.xlsx') ? undefined : 'products', source: 'onboarding' })
+          const batches = await uploadImport(file, { dataset: 'products', source: 'onboarding' })
           const failed = batches.reduce((n, b) => n + b.failed, 0)
           const fn = failed ? toast.warning : toast.success
           fn('Inventory imported', { description: `${batches.map(summarize).join(' ')}${failed ? ' See Import Data for the skipped rows.' : ''}` })
@@ -82,6 +84,8 @@ export default function Onboarding() {
           toast.error('Inventory file not imported', { description: `${err instanceof ApiError ? err.message : 'Try again'} You can upload it from Import Data.` })
         }
       }
+      store.invalidate('products', 'analytics', 'orders', 'mandate', 'suppliers', 'activity')
+      await refreshMe()
       navigate('/')
     } catch (e) {
       if (e instanceof ApiError && (e.field === 'gstin' || e.field === 'location')) {

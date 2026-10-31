@@ -191,3 +191,65 @@ def test_isolation(client):
     assert client.get("/api/imports").json()["batches"] == []
     assert all(s["name"] != "My Secret Supplier" for s in client.get("/api/suppliers").json()["suppliers"])
     assert all(not q["imported"] for q in client.get("/api/supplier-quotes").json()["quotes"])
+
+
+def test_real_world_upload_edge_cases(client):
+    register(client)
+
+    # 1. Exported inventory format: "Product" column, currency symbols, and extra status/coverage columns
+    exported_csv = (
+        "SKU,Product,Category,Price,Cost,Stock,Avg daily sales,Coverage (days),Status\n"
+        "EXP-001,Handcrafted Bowl,Home,Rs. 599/-,₹250,120,4.5,26.7,In Stock\n"
+        "EXP-002,Bamboo Coasters,Kitchen,499,Rs. 180,50,,,\n"
+    )
+    r = up(client, "Exported_Inventory.csv", exported_csv)
+    assert r.status_code == 201, r.text
+    b = r.json()["batches"][0]
+    assert b["dataset"] == "products" and b["status"] == "completed" and b["created"] == 2
+    ps = products(client)
+    assert ps["EXP-001"]["name"] == "Handcrafted Bowl" and ps["EXP-001"]["price"] == 59900 and ps["EXP-001"]["cost"] == 25000
+    assert ps["EXP-002"]["name"] == "Bamboo Coasters" and ps["EXP-002"]["stock"] == 50
+
+    # 2. Products with "Quantity" instead of "Stock"
+    qty_csv = "sku,name,price,cost,quantity\nQTY-1,Test Item,200,100,75\n"
+    r2 = up(client, "custom_products.csv", qty_csv)
+    b2 = r2.json()["batches"][0]
+    assert b2["dataset"] == "products" and b2["status"] == "completed" and b2["created"] == 1
+    assert products(client)["QTY-1"]["stock"] == 75
+
+    # 3. Filename has keyword 'products' but content is clearly sales (date, sku, units)
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    sales_misnamed = f"date,sku,units\n{yesterday},EXP-001,15\n"
+    r3 = up(client, "products_sold_october.csv", sales_misnamed)
+    b3 = r3.json()["batches"][0]
+    assert b3["dataset"] == "sales" and b3["status"] == "completed" and b3["created"] == 1
+
+    # 4. Sales with US date and timestamp
+    d_us = (date.today() - timedelta(days=2)).strftime("%m/%d/%Y")
+    d_ts = f"{(date.today() - timedelta(days=3)).isoformat()} 14:30:00"
+    sales_dates = f"date,sku,units\n{d_us},EXP-001,5\n{d_ts},EXP-002,8\n"
+    r4 = up(client, "sales_more.csv", sales_dates)
+    b4 = r4.json()["batches"][0]
+    assert b4["status"] == "completed" and b4["created"] == 2
+
+    # 5. Returns with spaced pincode (e.g. 302 001)
+    ret_csv = "pincode,sku,orders,returns\n302 001,EXP-001,20,2\n"
+    r5 = up(client, "returns.csv", ret_csv)
+    b5 = r5.json()["batches"][0]
+    assert b5["status"] == "completed" and b5["created"] == 1
+
+    # 6. Single-sheet Excel workbook with generic sheet name "Sheet1" and explicit target
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Sheet1"
+    ws.append(["SKU", "Product", "Price", "Cost", "Stock"])
+    ws.append(["XLS-01", "Excel Widget", 350, 150, 40])
+    buf = io.BytesIO()
+    wb.save(buf)
+    r6 = up(client, "custom_export.xlsx", buf.getvalue(), dataset="products")
+    assert r6.status_code == 201
+    b6 = r6.json()["batches"][0]
+    assert b6["dataset"] == "products" and b6["status"] == "completed" and b6["created"] == 1
+    assert products(client)["XLS-01"]["name"] == "Excel Widget"
+
