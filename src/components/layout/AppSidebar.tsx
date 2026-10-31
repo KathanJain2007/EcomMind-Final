@@ -1,7 +1,8 @@
 import { NavLink, useNavigate } from 'react-router'
 import {
   LayoutDashboard, Package, BarChart3, Sparkles, Bot, Factory, Handshake, Activity,
-  Wallet, ShieldCheck, FileText, Settings, Upload, ChevronsLeft, ChevronsRight, BrainCircuit, LogOut,
+  Wallet, ShieldCheck, Settings, Upload, ChevronsLeft, ChevronsRight, BrainCircuit, LogOut,
+  ShoppingBag, Flame,
 } from 'lucide-react'
 import { useApp } from '@/store/AppContext'
 import { cx } from '@/lib/format'
@@ -19,6 +20,13 @@ const NAV_SECTIONS: { label: string; items: { to: string; label: string; icon: t
     ],
   },
   {
+    label: 'Commerce & Selling',
+    items: [
+      { to: '/selling', label: 'Selling / Marketplaces', icon: ShoppingBag },
+      { to: '/festivals', label: 'Festival Intelligence', icon: Flame },
+    ],
+  },
+  {
     label: 'Agent Economy',
     items: [
       { to: '/agents', label: 'Agent Marketplace', icon: Bot },
@@ -32,7 +40,6 @@ const NAV_SECTIONS: { label: string; items: { to: string; label: string; icon: t
     items: [
       { to: '/wallet', label: 'Wallet & Transactions', icon: Wallet },
       { to: '/escrow', label: 'Escrow', icon: ShieldCheck },
-      { to: '/reports', label: 'Reports', icon: FileText },
     ],
   },
   {

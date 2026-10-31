@@ -15,7 +15,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-const tooltipStyle = { backgroundColor: '#10172A', border: '1px solid #27334D', borderRadius: 10, fontSize: 12, color: '#F8FAFC' }
+const tooltipStyle = { backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 10, fontSize: 12, color: 'hsl(var(--popover-foreground))' }
 const CATEGORIES = ['All', ...new Set(PRODUCTS.map((p) => p.category))]
 const STATUSES = ['All', 'In Stock', 'Low Stock', 'Critical', 'Out of Stock', 'Paused']
 

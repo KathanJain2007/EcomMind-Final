@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
+import { ThemeProvider } from '@/store/ThemeContext'
 import { AppProvider, useApp } from '@/store/AppContext'
 import AppLayout from '@/components/layout/AppLayout'
 import Login from '@/pages/auth/Login'
@@ -11,6 +12,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 const Inventory = lazy(() => import('@/pages/Inventory'))
 const Analytics = lazy(() => import('@/pages/Analytics'))
 const Insights = lazy(() => import('@/pages/Insights'))
+const Selling = lazy(() => import('@/pages/Selling'))
+const Festivals = lazy(() => import('@/pages/Festivals'))
 const AgentMarketplace = lazy(() => import('@/pages/AgentMarketplace'))
 const SupplierMarketplace = lazy(() => import('@/pages/SupplierMarketplace'))
 const Negotiations = lazy(() => import('@/pages/Negotiations'))
@@ -57,6 +60,8 @@ function AppRoutes() {
       <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
         <Route index element={<Overview />} />
         <Route path="inventory" element={<Suspense fallback={<PageLoader />}><Inventory /></Suspense>} />
+        <Route path="selling" element={<Suspense fallback={<PageLoader />}><Selling /></Suspense>} />
+        <Route path="festivals" element={<Suspense fallback={<PageLoader />}><Festivals /></Suspense>} />
         <Route path="analytics" element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
         <Route path="insights" element={<Suspense fallback={<PageLoader />}><Insights /></Suspense>} />
         <Route path="agents" element={<Suspense fallback={<PageLoader />}><AgentMarketplace /></Suspense>} />
@@ -76,8 +81,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <AppRoutes />
-    </AppProvider>
+    <ThemeProvider>
+      <AppProvider>
+        <AppRoutes />
+      </AppProvider>
+    </ThemeProvider>
   )
 }

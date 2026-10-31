@@ -13,9 +13,11 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SidebarContent } from './AppSidebar'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 const ROUTE_TITLES: Record<string, string> = {
   '/': 'Overview', '/inventory': 'Inventory', '/analytics': 'Sales Analytics', '/insights': 'AI Insights',
+  '/selling': 'Selling & Marketplaces', '/festivals': 'Festival Intelligence',
   '/agents': 'Agent Marketplace', '/suppliers': 'Supplier Marketplace', '/negotiations': 'Negotiations',
   '/activity': 'Agent Activity', '/wallet': 'Wallet & Transactions', '/escrow': 'Escrow',
   '/reports': 'Reports', '/settings': 'Settings', '/import': 'Import Data',
@@ -23,11 +25,12 @@ const ROUTE_TITLES: Record<string, string> = {
 
 const SEARCH_PAGES = [
   { label: 'Overview', route: '/' }, { label: 'Inventory', route: '/inventory' },
+  { label: 'Selling & Marketplaces', route: '/selling' }, { label: 'Festival Intelligence', route: '/festivals' },
   { label: 'Sales Analytics', route: '/analytics' }, { label: 'AI Insights', route: '/insights' },
   { label: 'Agent Marketplace', route: '/agents' }, { label: 'Supplier Marketplace', route: '/suppliers' },
   { label: 'Negotiations', route: '/negotiations' }, { label: 'Agent Activity', route: '/activity' },
   { label: 'Wallet & Transactions', route: '/wallet' }, { label: 'Escrow', route: '/escrow' },
-  { label: 'Reports', route: '/reports' }, { label: 'Settings', route: '/settings' },
+  { label: 'Reports (in Agent Activity)', route: '/activity?tab=reports' }, { label: 'Settings', route: '/settings' },
   { label: 'Import Data', route: '/import' },
 ]
 
@@ -162,6 +165,9 @@ export function AppHeader() {
           <DropdownMenuItem onSelect={() => navigate('/settings')}>Manage stores…</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Theme Switcher */}
+      <ThemeToggle />
 
       {/* Notifications */}
       <DropdownMenu onOpenChange={(open) => { if (!open) markNotificationsRead() }}>

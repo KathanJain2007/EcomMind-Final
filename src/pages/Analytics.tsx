@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { IndianRupee, ShoppingCart, Receipt, TrendingUp, Percent, Wallet } from 'lucide-react'
 
-const tooltipStyle = { backgroundColor: '#10172A', border: '1px solid #27334D', borderRadius: 10, fontSize: 12, color: '#F8FAFC' }
+const tooltipStyle = { backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 10, fontSize: 12, color: 'hsl(var(--popover-foreground))' }
 const PIE_COLORS = ['#7965F2', '#22C55E', '#F59E0B', '#9A8BFF', '#5f8bff']
 const RANGES = [7, 30, 90] as const
 

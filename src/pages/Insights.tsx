@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-const tooltipStyle = { backgroundColor: '#10172A', border: '1px solid #27334D', borderRadius: 10, fontSize: 12, color: '#F8FAFC' }
+const tooltipStyle = { backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 10, fontSize: 12, color: 'hsl(var(--popover-foreground))' }
 
 const ANALYSIS_STEPS = [
   'Validating business data',

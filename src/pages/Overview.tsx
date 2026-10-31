@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   IndianRupee, ShoppingCart, Package, Boxes, PiggyBank, Bot, Play, Pause, Activity as ActivityIcon,
-  ArrowRight, BrainCircuit, Clock,
+  ArrowRight, BrainCircuit, Clock, ShoppingBag, Flame,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import {
@@ -20,8 +20,11 @@ import { Card, CardContent } from '@/components/ui/card'
 const RANGES = [7, 30, 90] as const
 
 const tooltipStyle = {
-  backgroundColor: '#10172A', border: '1px solid #27334D', borderRadius: 10,
-  fontSize: 12, color: '#F8FAFC',
+  backgroundColor: 'hsl(var(--popover))',
+  border: '1px solid hsl(var(--border))',
+  borderRadius: 10,
+  fontSize: 12,
+  color: 'hsl(var(--popover-foreground))',
 }
 
 export default function Overview() {
@@ -154,6 +157,53 @@ export default function Overview() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Autonomous Commerce Quick Links */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <Card className="card-surface card-hover cursor-pointer" onClick={() => navigate('/selling')}>
+          <CardContent className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand-soft">
+                <ShoppingBag className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-foreground">Multi-Marketplace Selling</h3>
+                  <span className="rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-medium text-success">
+                    4 Channels Synced
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Amazon, Flipkart, Meesho & Shopify catalogue with real-time stock protection.
+                </p>
+              </div>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+          </CardContent>
+        </Card>
+
+        <Card className="card-surface card-hover cursor-pointer" onClick={() => navigate('/festivals')}>
+          <CardContent className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-warning/10 text-warning">
+                <Flame className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-foreground">Festival Intelligence & Discounts</h3>
+                  <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-warning">
+                    Diwali Peak Upcoming
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Demand surge forecasts and backend margin-verified festive campaign markdowns.
+                </p>
+              </div>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Charts row */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
