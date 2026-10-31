@@ -367,7 +367,7 @@ export function ReportsManager() {
       reportData.summaryCards,
       {
         storeName: auth.storeName || 'UrbanNest Living',
-        gstin: auth.gstin || '08AABCU9603R1ZM',
+        gstin: auth.gstin || 'Not provided',
         sellerName: auth.sellerName || 'Aarav Sharma',
       }
     )

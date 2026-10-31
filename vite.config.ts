@@ -9,6 +9,16 @@ export default defineConfig({
   plugins: [inspectAttr(), react()],
   server: {
     port: 3000,
+    // Same-origin API calls: the browser talks to :3000 and Vite forwards
+    // /api to the FastAPI backend, so the session cookie just works.
+    proxy: {
+      '/api': { target: process.env.VITE_API_TARGET ?? 'http://127.0.0.1:8000', changeOrigin: true },
+    },
+  },
+  preview: {
+    proxy: {
+      '/api': { target: process.env.VITE_API_TARGET ?? 'http://127.0.0.1:8000', changeOrigin: true },
+    },
   },
   resolve: {
     alias: {

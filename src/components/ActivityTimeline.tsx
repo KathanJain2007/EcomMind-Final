@@ -1,17 +1,17 @@
-import { formatTime } from '@/lib/format'
-import type { ActivityEvent } from '@/data/demo'
+import { formatPaise, formatTime } from '@/lib/format'
+import type { ApiEvent } from '@/lib/api'
 import { cx } from '@/lib/format'
 
-const TONE_DOT: Record<ActivityEvent['status'], string> = {
+const TONE_DOT: Record<ApiEvent['status'], string> = {
   success: 'bg-success',
   info: 'bg-brand',
   warning: 'bg-warning',
   pending: 'bg-warning',
 }
 
-export function ActivityTimeline({ events, compact }: { events: ActivityEvent[]; compact?: boolean }) {
+export function ActivityTimeline({ events, compact }: { events: ApiEvent[]; compact?: boolean }) {
   if (events.length === 0) {
-    return <p className="py-6 text-center text-sm text-muted-foreground">No agent activity yet today.</p>
+    return <p className="py-6 text-center text-sm text-muted-foreground">No agent activity yet.</p>
   }
   return (
     <ol className="relative space-y-0">
@@ -26,7 +26,7 @@ export function ActivityTimeline({ events, compact }: { events: ActivityEvent[];
             </div>
             {!compact && (
               <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                {e.agent}{e.product ? ` · ${e.product}` : ''}{typeof e.amount === 'number' ? ` · ₹${e.amount.toLocaleString('en-IN')}` : ''}
+                {e.agent}{e.product ? ` · ${e.product}` : ''}{typeof e.amount === 'number' ? ` · ${formatPaise(e.amount, { decimals: e.amount % 100 ? 2 : 0 })}` : ''}
               </p>
             )}
           </div>

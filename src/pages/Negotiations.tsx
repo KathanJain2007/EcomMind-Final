@@ -1,178 +1,206 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router'
 import { motion } from 'framer-motion'
-import { BrainCircuit, Check, CircleDashed, Factory, Handshake, Play, RotateCcw } from 'lucide-react'
-import { useApp } from '@/store/AppContext'
-import { FIN, NEGOTIATION_SCRIPT, SUPPLIERS, type NegoMessage } from '@/data/demo'
-import { cx, formatINR } from '@/lib/format'
-import { EmptyState, PageHeader, StatusBadge } from '@/components/common'
+import { AlertCircle, BrainCircuit, Factory, Handshake, Info, Loader2, Send, User, X } from 'lucide-react'
+import { toast } from 'sonner'
+import { useApiQuery, useDataStore } from '@/store/DataStore'
+import { api, ApiError, type ApiNegotiation } from '@/lib/api'
+import { cx, formatDateTime, formatPaise, timeAgo } from '@/lib/format'
+import { EmptyState, PageHeader, PanelError, StatusBadge } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 
-const TIMELINE_STEPS = ['RFQ broadcast', 'Offers received', 'Counter-offer', 'Final offer', 'Deal accepted', 'Escrow locked']
+const STATUS_TONE: Record<string, 'success' | 'warning' | 'info' | 'danger' | 'neutral'> = {
+  quotation_requested: 'info', awaiting_supplier_response: 'warning', negotiation_in_progress: 'info',
+  offer_received: 'warning', agreed: 'success', declined: 'danger', cancelled: 'neutral',
+}
+const CLOSED = new Set(['agreed', 'declined', 'cancelled'])
 
 export default function Negotiations() {
-  const { demoLoaded, loadDemoBusiness, markNegotiationDone, addActivity } = useApp()
-  const [messages, setMessages] = useState<NegoMessage[]>([])
-  const [running, setRunning] = useState(false)
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([])
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const { negotiationId } = useParams()
+  const navigate = useNavigate()
+  const listQ = useApiQuery<{ negotiations: ApiNegotiation[] }>('/api/negotiations', ['negotiations'])
+  const list = useMemo(() => listQ.data?.negotiations ?? [], [listQ.data])
 
-  useEffect(() => () => timers.current.forEach(clearTimeout), [])
+  // No id in the URL: open the most recent negotiation.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages])
-
-  const done = messages.length === NEGOTIATION_SCRIPT.length && !running
-
-  const stepIndex = done ? 6 : messages.length === 0 ? 0 : messages.length <= 1 ? 1 : messages.length <= 4 ? 2 : messages.length <= 5 ? 3 : messages.length <= 6 ? 4 : 5
-
-  const start = () => {
-    timers.current.forEach(clearTimeout)
-    setMessages([])
-    setRunning(true)
-    let t = 300
-    NEGOTIATION_SCRIPT.forEach((_, i) => {
-      t += NEGOTIATION_SCRIPT[i].delay
-      timers.current.push(setTimeout(() => {
-        setMessages((prev) => [...prev, NEGOTIATION_SCRIPT[i]])
-        if (i === NEGOTIATION_SCRIPT.length - 1) {
-          setRunning(false)
-          markNegotiationDone()
-          addActivity({ agent: 'EcomMind', action: 'Negotiation replayed — Supplier B at ₹180/unit', product: 'Wireless Earbuds', amount: 54000, status: 'success', detail: '300 units · savings ₹4,500 vs initial quote · escrow ESC-2026-1042.' })
-        }
-      }, t))
-    })
-  }
-
-  if (!demoLoaded) {
-    return (
-      <>
-        <PageHeader title="Negotiation Center" subtitle="Live agent-to-agent price negotiation." />
-        <EmptyState title="No active negotiations" body="Load the demo business to watch EcomMind negotiate a 300-unit restock with three supplier agents." action={<Button className="btn-glow border-0 text-white" onClick={() => loadDemoBusiness()}>Load Demo Business</Button>} />
-      </>
-    )
-  }
+    if (!negotiationId && list.length) navigate(`/negotiations/${list[0].id}`, { replace: true })
+  }, [negotiationId, list, navigate])
 
   return (
     <div>
       <PageHeader
         title="Negotiation Center"
-        subtitle="EcomMind negotiates with supplier agents in real time — within your mandate."
-        actions={
-          <div className="flex gap-2">
-            {messages.length > 0 && !running && (
-              <Button variant="outline" size="sm" onClick={start}><RotateCcw className="h-3.5 w-3.5" aria-hidden /> Replay</Button>
-            )}
-            <Button size="sm" className="btn-glow border-0 text-white" onClick={start} disabled={running}>
-              <Play className="h-3.5 w-3.5" aria-hidden /> {running ? 'Negotiating…' : 'Start Demo Negotiation'}
-            </Button>
-          </div>
-        }
+        subtitle="Every quotation request and negotiation, stored with its full offer history."
+        actions={<Button size="sm" className="btn-glow border-0 text-white" onClick={() => navigate('/suppliers')}><Send className="h-3.5 w-3.5" aria-hidden /> New quotation request</Button>}
       />
+      {listQ.error && <div className="mb-4"><PanelError message={listQ.error.message} onRetry={listQ.reload} /></div>}
 
-      {/* Progress */}
-      <div className="card-surface mb-5 px-5 py-4">
-        <div className="mb-2 flex items-center justify-between text-xs">
-          <span className="font-medium text-foreground">Negotiation progress</span>
-          <span className="text-muted-foreground">{Math.min(stepIndex, 6)} of 6 stages</span>
-        </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-secondary" role="progressbar" aria-valuenow={(stepIndex / 6) * 100} aria-valuemin={0} aria-valuemax={100}>
-          <div className="h-full rounded-full bg-gradient-to-r from-brand-soft to-brand transition-all duration-500" style={{ width: `${(stepIndex / 6) * 100}%` }} />
-        </div>
-        <ol className="mt-3 grid grid-cols-3 gap-2 md:grid-cols-6">
-          {TIMELINE_STEPS.map((s, i) => (
-            <li key={s} className={cx('flex items-center gap-1.5 text-[11px]', i < stepIndex ? 'text-success' : i === stepIndex && running ? 'text-brand-soft' : 'text-muted-foreground')}>
-              {i < stepIndex ? <Check className="h-3 w-3 shrink-0" aria-hidden /> : <CircleDashed className={cx('h-3 w-3 shrink-0', i === stepIndex && running && 'animate-spin')} aria-hidden />}
-              {s}
-            </li>
-          ))}
-        </ol>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        {/* Conversation */}
-        <Card className="card-surface xl:col-span-2">
-          <CardContent className="p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Agent conversation</h2>
-              {running && <StatusBadge label="Live" tone="success" pulse />}
-            </div>
-            <div ref={scrollRef} className="panel-grid h-[430px] space-y-3.5 overflow-y-auto rounded-xl border border-border bg-background/50 p-4" aria-live="polite">
-              {messages.length === 0 && (
-                <div className="flex h-full flex-col items-center justify-center text-center">
-                  <Handshake className="mb-3 h-8 w-8 text-muted-foreground/50" aria-hidden />
-                  <p className="text-sm font-medium text-muted-foreground">No messages yet</p>
-                  <p className="mt-1 max-w-xs text-xs text-muted-foreground/70">Start the demo negotiation to watch EcomMind and three supplier agents trade offers.</p>
-                </div>
-              )}
-              {messages.map((m, i) => {
-                const isMind = m.from === 'ecommind'
-                const supplier = !isMind ? SUPPLIERS.find((s) => s.id === m.from) : null
-                return (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.25 }}
-                    className={cx('flex gap-2.5', isMind && 'flex-row-reverse')}
-                  >
-                    <div className={cx('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', isMind ? 'btn-glow' : 'border border-border bg-secondary')}>
-                      {isMind ? <BrainCircuit className="h-4 w-4 text-white" aria-hidden /> : <Factory className="h-4 w-4 text-brand-soft" aria-hidden />}
-                    </div>
-                    <div className={cx('max-w-[75%] rounded-xl border px-3.5 py-2.5', isMind ? 'border-brand/35 bg-brand/12' : 'border-border bg-card')}>
-                      <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {isMind ? 'EcomMind' : supplier?.name.split('—')[0].trim()}
-                      </p>
-                      <p className="text-[13px] leading-relaxed">{m.text}</p>
-                      {m.price && (
-                        <p className={cx('tabular mt-1 text-xs font-semibold', m.kind === 'accept' ? 'text-success' : 'text-brand-soft')}>
-                          {formatINR(m.price)}/unit · {m.kind === 'counter' ? 'counter-offer' : m.kind === 'accept' ? 'accepted' : 'offer'}
-                        </p>
-                      )}
-                    </div>
-                  </motion.div>
-                )
-              })}
-              {running && (
-                <div className="flex items-center gap-2 pl-11 text-xs text-muted-foreground">
-                  <span className="flex gap-1"><span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-soft" /><span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-soft [animation-delay:120ms]" /><span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-soft [animation-delay:240ms]" /></span>
-                  agents typing…
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Summary */}
-        <Card className="card-surface">
-          <CardContent className="p-5">
-            <h2 className="mb-4 text-sm font-semibold">Deal summary</h2>
-            {messages.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-xs text-muted-foreground">Summary appears once the negotiation begins.</p>
-            ) : (
-              <dl className="space-y-3 text-sm">
-                {[
-                  { l: 'Product', v: 'Wireless Earbuds (EAR-001)' },
-                  { l: 'Quantity', v: `${FIN.orderQty} units` },
-                  { l: 'Original best quote', v: `${formatINR(195)}/unit — Supplier B` },
-                  { l: 'Counter-offer', v: `${formatINR(175)}/unit` },
-                  { l: 'Final price', v: `${formatINR(FIN.negotiatedUnitPrice)}/unit`, accent: done },
-                  { l: 'Total order value', v: formatINR(FIN.escrowLocked), accent: done },
-                  { l: 'Savings vs quote', v: formatINR(FIN.negotiationSavings), accent: done },
-                  { l: 'Supplier selected', v: 'Supplier B — Kedar Electronics' },
-                  { l: 'Delivery', v: '3 days from dispatch' },
-                  { l: 'Payment', v: 'Escrow ESC-2026-1042 (simulated)' },
-                ].map((r) => (
-                  <div key={r.l} className="flex items-start justify-between gap-3 border-b border-border pb-2.5 last:border-0 last:pb-0">
-                    <dt className="text-muted-foreground">{r.l}</dt>
-                    <dd className={cx('text-right font-medium', r.accent && 'text-success')}>{r.v}</dd>
-                  </div>
+      {listQ.data && list.length === 0 ? (
+        <EmptyState
+          title="No negotiations yet"
+          body="Request a quotation from a supplier in the Supplier Marketplace. Each request opens a negotiation here."
+          action={<Button className="btn-glow border-0 text-white" onClick={() => navigate('/suppliers')}>Open Supplier Marketplace</Button>}
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[18rem_minmax(0,1fr)]">
+          <Card className="card-surface h-fit">
+            <CardContent className="p-2">
+              <p className="px-2 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Sessions</p>
+              {listQ.loading && Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="mb-1.5 h-14" />)}
+              <ul className="max-h-[520px] space-y-1 overflow-y-auto">
+                {list.map((n) => (
+                  <li key={n.id}>
+                    <Link to={`/negotiations/${n.id}`} className={cx('block rounded-lg px-3 py-2.5 transition-colors', n.id === negotiationId ? 'bg-brand/12' : 'hover:bg-secondary/60')}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-medium">{n.supplierName.split('—')[0].trim()}</span>
+                        <StatusBadge label={n.statusLabel} tone={STATUS_TONE[n.status] ?? 'neutral'} />
+                      </div>
+                      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{n.productName} · {n.quantity} units · {timeAgo(n.updatedAt)}</p>
+                    </Link>
+                  </li>
                 ))}
-              </dl>
+              </ul>
+            </CardContent>
+          </Card>
+          {negotiationId ? <NegotiationDetail key={negotiationId} id={negotiationId} /> : <Skeleton className="h-96 rounded-xl" />}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function NegotiationDetail({ id }: { id: string }) {
+  const store = useDataStore()
+  const q = useApiQuery<ApiNegotiation>(`/api/negotiations/${id}`, ['negotiations'])
+  const [counter, setCounter] = useState('')
+  const [busy, setBusy] = useState<null | 'counter' | 'accept' | 'cancel'>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const n = q.data
+
+  const messageCount = n?.messages?.length ?? 0
+  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }) }, [messageCount])
+
+  if (q.error && !n) {
+    return <Card className="card-surface"><CardContent className="p-5"><PanelError message={q.error.status === 404 ? 'This negotiation doesn’t exist or belongs to another account.' : q.error.message} onRetry={q.reload} /></CardContent></Card>
+  }
+  if (!n) return <Skeleton className="h-96 rounded-xl" />
+
+  const act = async (kind: 'counter' | 'accept' | 'cancel') => {
+    if (busy) return
+    setBusy(kind)
+    setActionError(null)
+    try {
+      const body = kind === 'counter' ? { unitPrice: Math.round(Number(counter) * 100) } : undefined
+      const res = await api<ApiNegotiation>(`/api/negotiations/${n.id}/${kind}`, { method: 'POST', body })
+      store.setData(`/api/negotiations/${n.id}`, res)
+      store.invalidate('negotiations', 'activity', 'analytics')
+      if (kind === 'counter') setCounter('')
+      if (kind === 'accept') toast.success('Deal confirmed', { description: `${n.quantity} units at ${formatPaise(res.agreedUnitPrice ?? 0)}/unit. No funds moved yet.` })
+    } catch (e) {
+      setActionError(e instanceof ApiError ? e.message : 'That action didn’t go through. Try again.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const closed = CLOSED.has(n.status)
+  const total = n.latestSupplierPrice ? n.latestSupplierPrice * n.quantity : null
+  const counterValid = Number(counter) > 0
+
+  return (
+    <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <Card className="card-surface">
+        <CardContent className="p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold">{n.supplierName}</h2>
+              <p className="text-xs text-muted-foreground"><span className="font-mono">{n.id}</span> · RFQ <span className="font-mono">{n.rfqId}</span> · opened {formatDateTime(n.createdAt)}</p>
+            </div>
+            <StatusBadge label={n.statusLabel} tone={STATUS_TONE[n.status] ?? 'neutral'} pulse={n.status === 'awaiting_supplier_response'} />
+          </div>
+          <div ref={scrollRef} className="panel-grid h-[400px] space-y-3.5 overflow-y-auto rounded-xl border border-border bg-background/50 p-4" aria-live="polite">
+            {(n.messages ?? []).map((m) => {
+              const mine = m.sender === 'ecommind' || m.sender === 'seller'
+              if (m.sender === 'system') {
+                return <p key={m.id} className="flex items-center justify-center gap-1.5 text-center text-[11px] text-muted-foreground"><Info className="h-3 w-3" aria-hidden />{m.text}</p>
+              }
+              return (
+                <motion.div key={m.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className={cx('flex gap-2.5', mine && 'flex-row-reverse')}>
+                  <div className={cx('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', m.sender === 'ecommind' ? 'btn-glow' : 'border border-border bg-secondary')}>
+                    {m.sender === 'ecommind' ? <BrainCircuit className="h-4 w-4 text-white" aria-hidden /> : m.sender === 'seller' ? <User className="h-4 w-4 text-brand-soft" aria-hidden /> : <Factory className="h-4 w-4 text-brand-soft" aria-hidden />}
+                  </div>
+                  <div className={cx('max-w-[78%] rounded-xl border px-3.5 py-2.5', mine ? 'border-brand/35 bg-brand/12' : 'border-border bg-card')}>
+                    <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {m.sender === 'ecommind' ? 'EcomMind' : m.sender === 'seller' ? 'You' : n.supplierName.split('—')[0].trim()} · {new Date(m.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                    <p className="text-[13px] leading-relaxed">{m.text}</p>
+                    {m.unitPrice != null && (
+                      <p className={cx('tabular mt-1 text-xs font-semibold', m.kind === 'accept' ? 'text-success' : 'text-brand-soft')}>
+                        {formatPaise(m.unitPrice)}/unit · {m.kind === 'counter' ? 'counter-offer' : m.kind === 'accept' ? 'accepted' : 'offer'}
+                      </p>
+                    )}
+                  </div>
+                </motion.div>
+              )
+            })}
+            {n.status === 'awaiting_supplier_response' && (
+              <p className="text-center text-xs text-muted-foreground"><Loader2 className="mr-1 inline h-3 w-3 animate-spin" aria-hidden />Awaiting the supplier’s response. Nothing is sent on their behalf.</p>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+
+          {!closed && (
+            <div className="mt-4 space-y-3">
+              {actionError && <p role="alert" className="flex items-start gap-2 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />{actionError}</p>}
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="min-w-40 flex-1">
+                  <label htmlFor="counter-price" className="mb-1 block text-xs text-muted-foreground">Counter-offer (₹ per unit)</label>
+                  <Input id="counter-price" type="number" min={0} step="0.01" value={counter} onChange={(e) => setCounter(e.target.value)} placeholder={n.latestSupplierPrice ? String(Math.round(n.latestSupplierPrice / 100 * 0.95)) : ''} disabled={n.status === 'awaiting_supplier_response'} />
+                </div>
+                <Button variant="outline" onClick={() => act('counter')} disabled={!counterValid || !!busy || n.status === 'awaiting_supplier_response'}>
+                  {busy === 'counter' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-3.5 w-3.5" aria-hidden />} Send counter
+                </Button>
+                <Button className="btn-glow border-0 text-white" onClick={() => act('accept')} disabled={n.status !== 'offer_received' || !!busy}>
+                  {busy === 'accept' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Handshake className="h-4 w-4" aria-hidden />}
+                  Accept {n.latestSupplierPrice ? formatPaise(n.latestSupplierPrice) : ''}
+                </Button>
+                <Button variant="ghost" className="text-muted-foreground" onClick={() => act('cancel')} disabled={!!busy}>
+                  <X className="h-4 w-4" aria-hidden /> Cancel
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Accepting records the agreement only. It’s checked against your mandate’s per-order and daily limits, and no money moves until you lock funds in escrow.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="card-surface h-fit">
+        <CardContent className="p-5">
+          <h2 className="mb-4 text-sm font-semibold">Deal summary</h2>
+          <dl className="space-y-3 text-sm">
+            {[
+              { l: 'Product', v: `${n.productName} (${n.sku})` },
+              { l: 'Quantity', v: `${n.quantity.toLocaleString('en-IN')} units` },
+              { l: 'Target price', v: n.rfq.targetUnitPrice ? `${formatPaise(n.rfq.targetUnitPrice)}/unit` : '—' },
+              { l: 'Supplier’s latest offer', v: n.latestSupplierPrice ? `${formatPaise(n.latestSupplierPrice)}/unit` : '—' },
+              { l: 'Your latest counter', v: n.latestBuyerPrice ? `${formatPaise(n.latestBuyerPrice)}/unit` : '—' },
+              { l: 'Agreed price', v: n.agreedUnitPrice ? `${formatPaise(n.agreedUnitPrice)}/unit` : '—', accent: !!n.agreedUnitPrice },
+              { l: 'Order value', v: total ? formatPaise((n.agreedUnitPrice ?? n.latestSupplierPrice ?? 0) * n.quantity) : '—', accent: !!n.agreedUnitPrice },
+              { l: 'Delivery', v: n.supplierDeliveryDays ? `${n.supplierDeliveryDays} days (requested ${n.rfq.deliveryDays})` : `Requested within ${n.rfq.deliveryDays} days` },
+              { l: 'Deliver to', v: n.rfq.deliveryLocation },
+              { l: 'Counter-offers', v: String(n.rounds) },
+            ].map((r) => (
+              <div key={r.l} className="flex items-start justify-between gap-3 border-b border-border pb-2.5 last:border-0 last:pb-0">
+                <dt className="text-muted-foreground">{r.l}</dt>
+                <dd className={cx('text-right font-medium', r.accent && 'text-success')}>{r.v}</dd>
+              </div>
+            ))}
+          </dl>
+        </CardContent>
+      </Card>
     </div>
   )
 }

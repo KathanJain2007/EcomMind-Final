@@ -1,66 +1,48 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   IndianRupee, ShoppingCart, Package, Boxes, PiggyBank, Bot, Play, Pause, Activity as ActivityIcon,
-  ArrowRight, BrainCircuit, Clock, ShoppingBag, Flame,
+  ArrowRight, BrainCircuit, Wallet, ShoppingBag, Flame,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { useApp } from '@/store/AppContext'
-import { FIN, PRODUCTS, RECOMMENDATIONS, dailySeries, productSales, stockCoverage, stockStatus } from '@/data/demo'
-import { cx, formatINR, formatNum, greeting, timeAgo } from '@/lib/format'
-import { BudgetProgress, ChartCard, EmptyState, MetricCard, StatusBadge } from '@/components/common'
+import { useApiQuery } from '@/store/DataStore'
+import type { ApiEvent, ApiMandate } from '@/lib/api'
+import { formatNum, formatPaise, greeting, shortDate, signedDelta } from '@/lib/format'
+import { RangeTabs } from '@/components/charts'
+import { tooltipStyle, type DailyPoint, type Summary } from '@/lib/chartTheme'
+import { BudgetProgress, ChartCard, ChartEmpty, ChartSkeleton, EmptyState, MetricCard, PanelError, StatusBadge } from '@/components/common'
+import { CountUp } from '@/components/CountUp'
 import { ActivityTimeline } from '@/components/ActivityTimeline'
-import { usePageLoading } from '@/hooks/usePageLoading'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 
-const RANGES = [7, 30, 90] as const
-
-const tooltipStyle = {
-  backgroundColor: 'hsl(var(--popover))',
-  border: '1px solid hsl(var(--border))',
-  borderRadius: 10,
-  fontSize: 12,
-  color: 'hsl(var(--popover-foreground))',
-}
+interface InventoryRow { sku: string; name: string; stock: number; coverageDays: number | null; status: string }
+interface Recommendation { id: string; priority: 'High' | 'Medium' | 'Low'; sku: string; title: string; reason: string; impact: string; impactValue: number | null; action: string }
 
 export default function Overview() {
-  const { auth, demoLoaded, loadDemoBusiness, agentStatus, setAgentStatus, agentsDiscovered, lastExecution, activity, mandate } = useApp()
-  const loading = usePageLoading()
-  const [range, setRange] = useState<(typeof RANGES)[number]>(30)
+  const { auth, demoLoaded, loadDemoBusiness, agentStatus, setAgentStatus, business, marketplaces, festivalEvents } = useApp()
+  const [range, setRange] = useState<7 | 30 | 90>(30)
   const navigate = useNavigate()
 
-  const metrics = useMemo(() => {
-    const cur = dailySeries(30)
-    const revenue30 = cur.reduce((s, d) => s + d.revenue, 0)
-    const orders30 = cur.reduce((s, d) => s + d.orders, 0)
-    const prev = dailySeries(60).filter((d) => !cur.some((c) => c.date === d.date))
-    const prevRevenue = prev.reduce((s, d) => s + d.revenue, 0)
-    const prevOrders = prev.reduce((s, d) => s + d.orders, 0)
-    const inventoryValue = PRODUCTS.reduce((s, p) => s + p.stock * p.cost, 0)
-    const profit30 = productSales(30).reduce((s, p) => s + p.units * (p.product.price - p.product.cost), 0)
-    return {
-      revenue30, orders30, inventoryValue, profit30,
-      revDelta: prevRevenue ? ((revenue30 - prevRevenue) / prevRevenue) * 100 : 0,
-      ordDelta: prevOrders ? ((orders30 - prevOrders) / prevOrders) * 100 : 0,
-    }
-  }, [])
+  const summary = useApiQuery<Summary>(`/api/analytics/summary?days=${range}`, ['analytics', 'products', 'wallet', 'agents'])
+  const daily = useApiQuery<{ series: DailyPoint[] }>(`/api/analytics/daily?days=${range}`, ['analytics', 'products'])
+  const inventory = useApiQuery<{ products: InventoryRow[] }>('/api/analytics/inventory', ['products'])
+  const recs = useApiQuery<{ recommendations: Recommendation[] }>('/api/analytics/recommendations', ['products', 'analytics'])
+  const events = useApiQuery<{ items: ApiEvent[] }>('/api/activity/events?pageSize=6', ['activity'])
+  const mandate = useApiQuery<{ mandate: ApiMandate }>('/api/mandate', ['mandate'])
 
-  const chartData = useMemo(() => dailySeries(range).map((d) => ({ ...d, label: new Date(d.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) })), [range])
-
-  const stockData = useMemo(
-    () => PRODUCTS.map((p) => ({ name: p.name.replace('Insulated ', '').replace('Wireless ', ''), full: p.name, stock: p.stock, coverage: stockCoverage(p), status: stockStatus(p) })),
-    [],
-  )
-
-  if (!demoLoaded) {
+  const connectedChannels = marketplaces.filter((m) => m.status === 'connected').length
+  const nextFestival = festivalEvents.find((f) => f.status !== 'Completed')
+  const hasData = (summary.data?.productCount ?? 0) > 0
+  if (!demoLoaded && summary.data && !hasData) {
     return (
       <EmptyState
         title="Your autonomous economy awaits"
-        body="Load the demo business to explore EcomMind with 5 products, 90 days of sales history, supplier quotes and live agent activity — or import your own data."
+        body="Load the demo business to explore EcomMind with 5 products, 90 days of sample sales history, supplier quotes and agent activity — or import your own data."
         action={
           <div className="flex gap-2">
             <Button className="btn-glow border-0 text-white" onClick={() => loadDemoBusiness()}>
@@ -73,32 +55,44 @@ export default function Overview() {
     )
   }
 
-  const recentActivity = [...activity].sort((a, b) => b.time.localeCompare(a.time)).slice(0, 6)
+  const s = summary.data
+  const loading = summary.loading
+  const rev = signedDelta(s?.deltas.revenue)
+  const ord = signedDelta(s?.deltas.orders)
+  const prof = signedDelta(s?.deltas.profit)
+  const chartData = (daily.data?.series ?? []).map((d) => ({ ...d, label: shortDate(d.date), revenueRs: d.revenue / 100 }))
+  const stockData = (inventory.data?.products ?? []).map((p) => ({ ...p, short: p.name.replace('Insulated ', '').replace('Wireless ', '') }))
+  const daily_ = mandate.data?.mandate.dailyBudget ?? s?.budget.daily ?? 0
+  const consumed = s?.budget.consumedToday ?? 0
 
   return (
     <div className="space-y-6">
-      {/* Greeting */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight md:text-2xl">{greeting()}, {auth.sellerName.split(' ')[0] || 'Seller'}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Here is what EcomMind has been working on today.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Here is what EcomMind has been working on{business?.demoLoaded ? ' · showing the UrbanNest Living demo dataset' : ''}.
+          </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigate('/activity')}>
-          <ActivityIcon className="h-3.5 w-3.5" aria-hidden /> View all activity
-        </Button>
+        <div className="flex items-center gap-2">
+          <RangeTabs value={range} onChange={setRange} />
+          <Button variant="outline" size="sm" onClick={() => navigate('/activity')}>
+            <ActivityIcon className="h-3.5 w-3.5" aria-hidden /> View all activity
+          </Button>
+        </div>
       </div>
 
-      {/* Metric cards */}
+      {summary.error && <PanelError message={summary.error.message} onRetry={summary.reload} />}
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <MetricCard loading={loading} label="Total Revenue" value={formatINR(metrics.revenue30)} delta={`${metrics.revDelta >= 0 ? '+' : ''}${metrics.revDelta.toFixed(1)}%`} up={metrics.revDelta >= 0} hint="vs prev 30d" icon={<IndianRupee className="h-4 w-4" aria-hidden />} />
-        <MetricCard loading={loading} label="Total Orders" value={formatNum(metrics.orders30)} delta={`${metrics.ordDelta >= 0 ? '+' : ''}${metrics.ordDelta.toFixed(1)}%`} up={metrics.ordDelta >= 0} hint="vs prev 30d" icon={<ShoppingCart className="h-4 w-4" aria-hidden />} />
-        <MetricCard loading={loading} label="Total Products" value={String(PRODUCTS.length)} hint="2 need attention" icon={<Package className="h-4 w-4" aria-hidden />} />
-        <MetricCard loading={loading} label="Inventory Value" value={formatINR(metrics.inventoryValue)} hint="at unit cost" icon={<Boxes className="h-4 w-4" aria-hidden />} />
-        <MetricCard loading={loading} label="Estimated Profit" value={formatINR(metrics.profit30)} delta="+9.8%" up hint="30d gross" icon={<PiggyBank className="h-4 w-4" aria-hidden />} />
-        <MetricCard loading={loading} label="Active AI Agents" value={agentStatus === 'paused' ? '0' : '5'} hint={`of ${agentsDiscovered} discovered`} icon={<Bot className="h-4 w-4" aria-hidden />} />
+        <MetricCard loading={loading} label="Total Revenue" value={<CountUp value={(s?.revenue ?? 0) / 100} format="inr" />} delta={rev?.text} up={rev?.up} hint={`vs prev ${range}d`} icon={<IndianRupee className="h-4 w-4" aria-hidden />} />
+        <MetricCard loading={loading} label="Total Orders" value={<CountUp value={s?.orders ?? 0} />} delta={ord?.text} up={ord?.up} hint={`vs prev ${range}d`} icon={<ShoppingCart className="h-4 w-4" aria-hidden />} />
+        <MetricCard loading={loading} label="Total Products" value={<CountUp value={s?.productCount ?? 0} />} hint={s?.needsAttention ? `${s.needsAttention} need attention` : 'all healthy'} icon={<Package className="h-4 w-4" aria-hidden />} />
+        <MetricCard loading={loading} label="Inventory Value" value={<CountUp value={(s?.inventoryValue ?? 0) / 100} format="inr" />} hint="at unit cost" icon={<Boxes className="h-4 w-4" aria-hidden />} />
+        <MetricCard loading={loading} label="Estimated Profit" value={<CountUp value={(s?.profit ?? 0) / 100} format="inr" />} delta={prof?.text} up={prof?.up} hint={`${range}d gross`} icon={<PiggyBank className="h-4 w-4" aria-hidden />} />
+        <MetricCard loading={loading} label="Active AI Agents" value={<CountUp value={s?.activeAgents ?? 0} durationMs={900} />} hint={`of ${s?.agentsDiscovered ?? 0} discovered`} icon={<Bot className="h-4 w-4" aria-hidden />} />
       </div>
 
-      {/* AI agent panel */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
         <Card className="card-surface overflow-hidden">
           <div className="h-0.5 w-full bg-gradient-to-r from-brand-soft via-brand to-[#5f8bff]" aria-hidden />
@@ -111,34 +105,33 @@ export default function Overview() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-semibold tracking-tight">EcomMind Agent</h2>
-                    <StatusBadge
-                      label={agentStatus === 'active' ? 'Active' : agentStatus === 'paused' ? 'Paused' : 'Idle'}
-                      tone={agentStatus === 'active' ? 'success' : agentStatus === 'paused' ? 'danger' : 'warning'}
-                      pulse={agentStatus === 'active'}
-                    />
+                    <StatusBadge label={agentStatus === 'active' ? 'Active' : 'Paused'} tone={agentStatus === 'active' ? 'success' : 'danger'} pulse={agentStatus === 'active'} />
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Agent ID <span className="font-mono text-foreground/80">ecommind-01</span> · {agentsDiscovered} agents discovered ·
-                    <Clock className="mx-1 inline h-3 w-3" aria-hidden />last execution {timeAgo(lastExecution)}
+                    Agent ID <span className="font-mono text-foreground/80">ecommind-01</span> · {s?.agentsDiscovered ?? 0} agents discovered
                   </p>
-                  <div className="mt-4 grid max-w-xl grid-cols-3 gap-4">
+                  <div className="mt-4 grid max-w-xl grid-cols-2 gap-4 sm:grid-cols-4">
                     <div>
                       <p className="text-[11px] text-muted-foreground">Daily mandate</p>
-                      <p className="tabular text-sm font-semibold">{formatINR(mandate.dailyBudget)}</p>
+                      <p className="tabular text-sm font-semibold"><CountUp value={daily_ / 100} format="inr" /></p>
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground">Consumed today</p>
-                      <p className="tabular text-sm font-semibold text-warning">{formatINR(FIN.budgetConsumed)}</p>
+                      <p className="tabular text-sm font-semibold text-warning"><CountUp value={consumed / 100} format="inr" /></p>
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground">Remaining</p>
-                      <p className="tabular text-sm font-semibold text-success">{formatINR(mandate.dailyBudget - FIN.budgetConsumed)}</p>
+                      <p className="tabular text-sm font-semibold text-success"><CountUp value={Math.max(0, daily_ - consumed) / 100} format="inr" /></p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-muted-foreground">Wallet balance</p>
+                      <p className="tabular flex items-center gap-1 text-sm font-semibold"><Wallet className="h-3 w-3 text-muted-foreground" aria-hidden /><CountUp value={(s?.walletBalance ?? 0) / 100} format="inr" /></p>
                     </div>
                   </div>
                 </div>
               </div>
               <div className="w-full max-w-sm space-y-3">
-                <BudgetProgress label="Mandate budget utilisation" value={FIN.budgetConsumed} max={mandate.dailyBudget} />
+                <BudgetProgress label="Mandate budget utilisation (today)" value={consumed / 100} max={Math.max(1, daily_ / 100)} />
                 <div className="flex flex-wrap gap-2">
                   {agentStatus === 'active' ? (
                     <Button size="sm" variant="outline" className="border-warning/40 text-warning hover:bg-warning/10" onClick={() => setAgentStatus('paused')}>
@@ -164,13 +157,13 @@ export default function Overview() {
           <CardContent className="flex items-center justify-between p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand-soft">
-                <ShoppingBag className="h-5 w-5" />
+                <ShoppingBag className="h-5 w-5" aria-hidden />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-foreground">Multi-Marketplace Selling</h3>
                   <span className="rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-medium text-success">
-                    4 Channels Synced
+                    {connectedChannels} channels connected
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -178,7 +171,7 @@ export default function Overview() {
                 </p>
               </div>
             </div>
-            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden />
           </CardContent>
         </Card>
 
@@ -186,13 +179,13 @@ export default function Overview() {
           <CardContent className="flex items-center justify-between p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-warning/10 text-warning">
-                <Flame className="h-5 w-5" />
+                <Flame className="h-5 w-5" aria-hidden />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-foreground">Festival Intelligence & Discounts</h3>
                   <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-warning">
-                    Diwali Peak Upcoming
+                    {nextFestival ? `${nextFestival.name} upcoming` : 'Festival calendar'}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -200,74 +193,60 @@ export default function Overview() {
                 </p>
               </div>
             </div>
-            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden />
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts row */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
-        <ChartCard
-          title="Sales analytics"
-          subtitle="Daily revenue and orders"
-          className="xl:col-span-3"
-          action={
-            <div className="flex gap-1 rounded-lg border border-border bg-secondary/60 p-0.5" role="tablist" aria-label="Date range">
-              {RANGES.map((r) => (
-                <button
-                  key={r}
-                  role="tab"
-                  aria-selected={range === r}
-                  onClick={() => setRange(r)}
-                  className={cx('rounded-md px-2.5 py-1 text-xs font-medium transition-colors', range === r ? 'bg-brand text-white' : 'text-muted-foreground hover:text-foreground')}
-                >
-                  {r}d
-                </button>
-              ))}
-            </div>
-          }
-        >
+        <ChartCard title="Sales analytics" subtitle={`Daily revenue and orders · last ${range} days`} className="xl:col-span-3">
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 8, right: 4, left: -8, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#7965F2" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#7965F2" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27334D" vertical={false} />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={28} />
-                <YAxis yAxisId="rev" tickLine={false} axisLine={false} tickFormatter={(v: number) => `₹${Math.round(v / 1000)}k`} width={52} />
-                <YAxis yAxisId="ord" orientation="right" tickLine={false} axisLine={false} width={36} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => (name === 'Revenue' ? [formatINR(v), name] : [formatNum(v), name])} />
-                <Area yAxisId="rev" type="monotone" dataKey="revenue" name="Revenue" stroke="#9A8BFF" strokeWidth={2} fill="url(#rev)" />
-                <Area yAxisId="ord" type="monotone" dataKey="orders" name="Orders" stroke="#22C55E" strokeWidth={1.5} fill="transparent" strokeDasharray="4 3" />
-              </AreaChart>
-            </ResponsiveContainer>
+            {daily.loading ? <ChartSkeleton /> : daily.error ? <PanelError message={daily.error.message} onRetry={daily.reload} />
+              : chartData.length === 0 ? <ChartEmpty text="No sales recorded in this period." /> : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 8, right: 4, left: -4, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#7965F2" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#7965F2" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={28} />
+                  <YAxis yAxisId="rev" tickLine={false} axisLine={false} tickFormatter={(v: number) => `₹${Math.round(v / 1000)}k`} width={52} label={{ value: 'Revenue', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 11, dx: 6 }} />
+                  <YAxis yAxisId="ord" orientation="right" tickLine={false} axisLine={false} width={40} label={{ value: 'Orders', angle: 90, position: 'insideRight', fill: '#94a3b8', fontSize: 11 }} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => (name === 'Revenue' ? [formatPaise(v * 100), name] : [formatNum(v), name])} />
+                  <Legend verticalAlign="top" height={24} iconType="plainline" wrapperStyle={{ fontSize: 11 }} />
+                  <Area yAxisId="rev" type="monotone" dataKey="revenueRs" name="Revenue" stroke="#9A8BFF" strokeWidth={2} fill="url(#rev)" isAnimationActive />
+                  <Area yAxisId="ord" type="monotone" dataKey="orders" name="Orders" stroke="#22C55E" strokeWidth={1.5} fill="transparent" strokeDasharray="4 3" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </ChartCard>
 
-        <ChartCard title="Inventory overview" subtitle="Stock on hand by product" className="xl:col-span-2">
+        <ChartCard title="Inventory overview" subtitle="Stock on hand · colour shows days of cover" className="xl:col-span-2">
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stockData} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27334D" horizontal={false} />
-                <XAxis type="number" tickLine={false} axisLine={false} />
-                <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={92} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: number, _n, item) => [`${v} units · ${item.payload.coverage}d cover`, item.payload.full]} labelFormatter={() => ''} />
-                <Bar dataKey="stock" radius={[0, 6, 6, 0]} barSize={16}>
-                  {stockData.map((d) => (
-                    <Cell key={d.full} fill={d.status === 'Critical' ? '#EF4444' : d.status === 'Low Stock' ? '#F59E0B' : '#7965F2'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {inventory.loading ? <ChartSkeleton /> : inventory.error ? <PanelError message={inventory.error.message} onRetry={inventory.reload} />
+              : stockData.length === 0 ? <ChartEmpty text="No products yet." /> : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stockData} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis type="number" tickLine={false} axisLine={false} label={{ value: 'Units in stock', position: 'insideBottom', offset: -2, fill: '#94a3b8', fontSize: 11 }} height={32} />
+                  <YAxis type="category" dataKey="short" tickLine={false} axisLine={false} width={92} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v: number, _n, item) => [`${formatNum(v)} units · ${item.payload.coverageDays ?? '—'}d cover · ${item.payload.status}`, item.payload.name]} labelFormatter={() => ''} />
+                  <Bar dataKey="stock" radius={[0, 6, 6, 0]} barSize={16}>
+                    {stockData.map((d) => (
+                      <Cell key={d.sku} fill={d.status === 'Critical' || d.status === 'Out of Stock' ? '#EF4444' : d.status === 'Low Stock' ? '#F59E0B' : '#7965F2'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </ChartCard>
       </div>
 
-      {/* Recommendations + activity */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
         <div className="space-y-3 xl:col-span-3">
           <div className="flex items-center justify-between">
@@ -276,20 +255,22 @@ export default function Overview() {
               Open EcomMind Intelligence <ArrowRight className="h-3 w-3" aria-hidden />
             </Link>
           </div>
+          {recs.error && <PanelError message={recs.error.message} onRetry={recs.reload} />}
+          {recs.data && recs.data.recommendations.length === 0 && <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">No action needed right now: stock and returns are within healthy ranges.</p>}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {RECOMMENDATIONS.map((r) => (
+            {(recs.data?.recommendations ?? []).map((r) => (
               <Card key={r.id} className="card-surface card-hover">
                 <CardContent className="p-4">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <StatusBadge label={`${r.priority} priority`} tone={r.priority === 'High' ? 'danger' : r.priority === 'Medium' ? 'warning' : 'neutral'} />
-                    {r.sku && <span className="font-mono text-[10px] text-muted-foreground">{r.sku}</span>}
+                    <span className="font-mono text-[10px] text-muted-foreground">{r.sku}</span>
                   </div>
                   <h3 className="text-sm font-semibold">{r.title}</h3>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{r.reason}</p>
-                  <p className="mt-2 text-xs font-medium text-success">{r.impact}</p>
+                  <p className="mt-2 text-xs font-medium text-success">{r.impactValue ? `Protects ~${formatPaise(r.impactValue)} of sales. ` : ''}{r.impact}</p>
                   <div className="mt-3 flex items-center justify-between gap-2">
-                    <span className="text-[11px] text-muted-foreground line-clamp-1">{r.action}</span>
-                    <Button size="sm" variant="outline" className="h-7 shrink-0 text-xs" onClick={() => navigate(r.sku ? `/inventory?q=${encodeURIComponent(r.title.replace(/^(Restock|Review|Monitor|Optimize)\s*/, '').replace(/ (inventory|stock|return rate)$/, ''))}` : '/insights')}>
+                    <span className="line-clamp-1 text-[11px] text-muted-foreground">{r.action}</span>
+                    <Button size="sm" variant="outline" className="h-7 shrink-0 text-xs" onClick={() => navigate(`/inventory?q=${encodeURIComponent(r.sku)}`)}>
                       View details
                     </Button>
                   </div>
@@ -303,9 +284,9 @@ export default function Overview() {
           <CardContent className="p-5">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-sm font-semibold">Recent agent activity</h2>
-              <StatusBadge label={agentStatus === 'active' ? 'Live' : 'Paused'} tone={agentStatus === 'active' ? 'success' : 'danger'} pulse={agentStatus === 'active'} />
+              <StatusBadge label={agentStatus === 'active' ? 'Active' : 'Paused'} tone={agentStatus === 'active' ? 'success' : 'danger'} pulse={agentStatus === 'active'} />
             </div>
-            <ActivityTimeline events={recentActivity} />
+            {events.error ? <PanelError message={events.error.message} onRetry={events.reload} /> : <ActivityTimeline events={events.data?.items ?? []} />}
           </CardContent>
         </Card>
       </div>

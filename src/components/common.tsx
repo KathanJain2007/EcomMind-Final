@@ -58,7 +58,7 @@ export function PageHeader({ title, subtitle, crumbs, actions }: { title: string
 
 /* Metric card */
 export function MetricCard({ label, value, delta, up, icon, hint, loading }: {
-  label: string; value: string; delta?: string; up?: boolean; icon: ReactNode; hint?: string; loading?: boolean
+  label: string; value: ReactNode; delta?: string; up?: boolean; icon: ReactNode; hint?: ReactNode; loading?: boolean
 }) {
   if (loading) {
     return (
@@ -170,6 +170,24 @@ export function BudgetProgress({ label, value, max, tone = 'brand' }: { label: s
       </div>
     </div>
   )
+}
+
+/* Inline loading / error states for data panels */
+export function PanelError({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-danger/35 bg-danger/8 px-3.5 py-2.5 text-xs text-danger">
+      <span>{message}</span>
+      {onRetry && <button onClick={onRetry} className="font-medium underline-offset-2 hover:underline">Retry</button>}
+    </div>
+  )
+}
+
+export function ChartSkeleton({ className }: { className?: string }) {
+  return <Skeleton className={cx('h-full w-full rounded-lg', className)} />
+}
+
+export function ChartEmpty({ text }: { text: string }) {
+  return <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">{text}</div>
 }
 
 /* INR delta text */

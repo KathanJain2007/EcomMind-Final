@@ -99,3 +99,17 @@ export function greeting(): string {
   if (h < 17) return 'Good afternoon'
   return 'Good evening'
 }
+
+/** Money from the API is integer paise (₹1 = 100). */
+export function formatPaise(paise: number, opts: { decimals?: number; compact?: boolean } = {}): string {
+  return formatINR(paise / 100, opts)
+}
+
+export function signedDelta(pct: number | null | undefined): { text: string; up: boolean } | undefined {
+  if (pct === null || pct === undefined) return undefined
+  return { text: `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`, up: pct >= 0 }
+}
+
+export function shortDate(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+}
