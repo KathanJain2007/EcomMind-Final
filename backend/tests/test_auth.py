@@ -103,6 +103,24 @@ def test_demo_login(client):
     r = client.post("/api/auth/demo")
     assert r.status_code == 200
     assert r.json()["business"]["demoLoaded"] is True
+    assert r.json()["user"]["name"] == "John Doe"
+    assert r.json()["user"]["isDemo"] is True
+
+
+def test_demo_login_renames_an_existing_demo_account_and_keeps_its_data(client):
+    client.post("/api/auth/demo")
+    products = client.get("/api/products").json()
+    assert products
+    from app import db as dbmod
+    from app.models import User
+    with dbmod.SessionLocal() as s:
+        s.query(User).filter(User.is_demo).one().name = "Aarav Sharma"
+        s.commit()
+    client.post("/api/auth/logout")
+
+    r = client.post("/api/auth/demo")
+    assert r.json()["user"]["name"] == "John Doe"
+    assert client.get("/api/products").json() == products
 
 
 def test_session_endpoint(client):

@@ -9,6 +9,7 @@ import AppLayout from '@/components/layout/AppLayout'
 import Login from '@/pages/auth/Login'
 import Register from '@/pages/auth/Register'
 import Onboarding from '@/pages/auth/Onboarding'
+import Landing from '@/pages/landing/Landing'
 import Overview from '@/pages/Overview'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -50,7 +51,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
   const { auth } = useApp()
   const location = useLocation()
   if (auth.status === 'loading') return <SessionLoader />
-  if (!auth.loggedIn) return <Navigate to="/login" replace />
+  if (!auth.loggedIn) return <Navigate to="/welcome" replace />
   if (!auth.onboarded && location.pathname !== '/onboarding') return <Navigate to="/onboarding" replace />
   return <>{children}</>
 }
@@ -66,8 +67,12 @@ function AppRoutes() {
   const { auth } = useApp()
   return (
     <Routes>
-      <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
-      <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
+      {/* The landing page stays mounted; /login and /register open their forms in its dialog. */}
+      <Route element={<PublicOnly><Landing /></PublicOnly>}>
+        <Route path="/welcome" element={null} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+      </Route>
       <Route path="/onboarding" element={auth.status === 'loading' ? <SessionLoader /> : auth.loggedIn ? (auth.onboarded ? <Navigate to="/" replace /> : <Onboarding />) : <Navigate to="/login" replace />} />
       <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
         <Route index element={<Overview />} />

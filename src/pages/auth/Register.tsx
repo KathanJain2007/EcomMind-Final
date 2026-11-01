@@ -7,7 +7,7 @@ import { emailError } from '@/lib/validation/email'
 import { getExpectedCheckDigit, gstinLiveError, normalizeGstin, SAMPLE_GSTINS, validateGstin } from '@/lib/validation/gstin'
 import { EMPTY_PLACE, locationProblem, type PlaceValue } from '@/lib/place'
 import { LocationAutocomplete } from '@/components/LocationAutocomplete'
-import { AuthModeSwitch, AuthShell } from './AuthShell'
+import { AuthModeSwitch } from './AuthShell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -89,7 +89,7 @@ export default function Register() {
   )
 
   return (
-    <AuthShell>
+    <>
       <AuthModeSwitch />
       <h2 className="text-2xl font-bold tracking-tight">Create your account</h2>
       <p className="mt-1 text-sm text-muted-foreground">Set up your autonomous selling workspace in minutes.</p>
@@ -183,6 +183,6 @@ export default function Register() {
         Already have an account?{' '}
         <Link to="/login" className="font-medium text-brand-soft hover:underline">Sign in</Link>
       </p>
-    </AuthShell>
+    </>
   )
 }

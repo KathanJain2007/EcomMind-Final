@@ -1,20 +1,26 @@
-import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { Loader2, Play } from 'lucide-react'
 import { toast } from 'sonner'
 import { useApp } from '@/store/AppContext'
 import { ApiError } from '@/lib/api'
 import { emailError } from '@/lib/validation/email'
-import { AuthModeSwitch, AuthShell } from './AuthShell'
-import BrandMark from '@/components/BrandMark'
+import { AuthModeSwitch } from './AuthShell'
+import type { DemoRouteState } from '@/pages/landing/authCta'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 
+const DEMO_OPEN_DELAY_MS = 600
+
 export default function Login() {
   const { login, demoLogin } = useApp()
   const navigate = useNavigate()
+  const location = useLocation()
+  const wantsDemo = !!(location.state as DemoRouteState | null)?.startDemo
+  const [autoDemoRunning, setAutoDemoRunning] = useState(false)
+  const [demoRunning, setDemoRunning] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(true)
@@ -46,6 +52,7 @@ export default function Login() {
 
   const demo = async () => {
     setLoading(true)
+    setDemoRunning(true)
     try {
       await demoLogin()
       navigate('/')
@@ -53,18 +60,35 @@ export default function Login() {
       setErrors({ form: err instanceof ApiError ? err.message : 'Demo login failed.' })
     } finally {
       setLoading(false)
+      setDemoRunning(false)
     }
   }
 
-  return (
-    <AuthShell>
-      <div className="mb-8 lg:hidden">
-        <div className="flex items-center gap-2.5">
-          <BrandMark className="h-9 w-9" />
-          <p className="text-lg font-semibold">EcomMind</p>
-        </div>
-      </div>
+  // "Try the Live Demo" on the landing page arrives here and runs the same handler as the button.
+  // It waits for the dialog to finish opening; closing the dialog before then cancels it.
+  useEffect(() => {
+    if (!wantsDemo) return
+    const timer = window.setTimeout(() => {
+      setAutoDemoRunning(true)
+      navigate('/login', { replace: true, state: null })
+      demo().finally(() => setAutoDemoRunning(false))
+    }, DEMO_OPEN_DELAY_MS)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantsDemo])
 
+  if (wantsDemo || autoDemoRunning) {
+    return (
+      <div role="status" className="flex flex-col items-center py-14 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-soft" aria-hidden />
+        <h2 className="mt-5 text-xl font-bold tracking-tight">Opening the live demo</h2>
+        <p className="mt-1.5 text-sm text-muted-foreground">Loading UrbanNest Living, a sample business.</p>
+      </div>
+    )
+  }
+
+  return (
+    <>
       <AuthModeSwitch />
       <h2 className="text-2xl font-bold tracking-tight">Welcome back</h2>
       <p className="mt-1 text-sm text-muted-foreground">Sign in to your autonomous commerce workspace.</p>
@@ -98,7 +122,7 @@ export default function Login() {
           <Label htmlFor="remember" className="text-sm font-normal text-muted-foreground">Remember me on this device</Label>
         </div>
         <Button type="submit" className="btn-glow h-10 w-full border-0 text-white" disabled={loading}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Sign in'}
+          {loading && !demoRunning ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Sign in'}
         </Button>
       </form>
 
@@ -107,13 +131,13 @@ export default function Login() {
       </div>
 
       <Button variant="outline" className="h-10 w-full border-brand/40 bg-brand/10 text-brand-soft hover:bg-brand/20 hover:text-brand-soft" onClick={demo} disabled={loading}>
-        <Play className="h-4 w-4" aria-hidden /> Demo Login — explore with sample data
+        {demoRunning ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Play className="h-4 w-4" aria-hidden />} Demo Login — explore with sample data
       </Button>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         New to EcomMind?{' '}
         <Link to="/register" className="font-medium text-brand-soft hover:underline">Create an account</Link>
       </p>
-    </AuthShell>
+    </>
   )
 }

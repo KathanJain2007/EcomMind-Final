@@ -27,6 +27,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 PASSWORD_MIN, PASSWORD_MAX = 6, 128
 DEMO_EMAIL = "ecommind.demo.seller@gmail.com"
+DEMO_NAME = "John Doe"
 
 
 class RegisterIn(BaseModel):
@@ -134,7 +135,7 @@ def demo_login(response: Response, db: Session = Depends(get_db)):
     if not user:
         # Random, never-disclosed password: the demo account is reachable only through this button.
         user = User(email=res.email, email_canonical=res.canonical, password_hash=hash_password(secrets.token_urlsafe(24)),
-                    name="Aarav Sharma", is_demo=True)
+                    name=DEMO_NAME, is_demo=True)
         db.add(user)
         db.flush()
         biz = Business(owner_id=user.id, name="UrbanNest Living", category="Home & Kitchen", channel="Amazon",
@@ -143,6 +144,10 @@ def demo_login(response: Response, db: Session = Depends(get_db)):
         db.add(biz)
         db.flush()
         ensure_mandate(db, biz)
+        db.commit()
+    elif user.name != DEMO_NAME:
+        # A demo account created under an earlier name keeps its sample data.
+        user.name = DEMO_NAME
         db.commit()
     biz = user.business or db.scalar(select(Business).where(Business.owner_id == user.id))
     if not biz.demo_loaded:
