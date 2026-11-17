@@ -48,6 +48,9 @@ class Settings:
     smtp_from: str = field(default_factory=lambda: os.environ.get("SMTP_FROM", ""))
     smtp_starttls: bool = field(default_factory=lambda: _bool("SMTP_STARTTLS", True))
 
+    # Vercel Cron sends "Authorization: Bearer <CRON_SECRET>". Without it the cron endpoint refuses every call.
+    cron_secret: str = field(default_factory=lambda: os.environ.get("CRON_SECRET", "").strip())
+
     agent_timeout_seconds: float = field(default_factory=lambda: float(os.environ.get("AGENT_TIMEOUT_SECONDS", "10")))
 
     @property

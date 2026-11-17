@@ -35,6 +35,16 @@ the local default; hosted data needs Postgres because a function keeps no files 
 Set these in the Vercel project: `DATABASE_URL` (Postgres, added by the Neon integration), `SECRET_KEY`
 (long and random) and `COOKIE_SECURE=true`.
 
+### Scheduled agent runs
+
+`vercel.json` has a cron entry that calls `GET /api/cron/agent-runs` every day at 03:30 UTC (09:00 IST).
+Set `CRON_SECRET` (long and random) in the Vercel project. Vercel sends it as a bearer token, and
+without it the endpoint refuses every call. Each run checks every business that has products (demo
+accounts are left out). It restocks low items from the cheapest valid supplier quote and reprices
+from competitor prices. What it may do on its own follows the seller's autonomy level: level 1 only
+suggests, level 2 sends everything for approval, and level 3 acts inside the mandate limits. Sellers
+can also press **Run check now** on the Overview page (`POST /api/agent/runs`).
+
 ## Tests
 
 ```bash

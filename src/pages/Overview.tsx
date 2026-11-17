@@ -17,6 +17,7 @@ import { CHART_ANIMATE, tooltipStyle, type DailyPoint, type Summary } from '@/li
 import { BudgetProgress, ChartCard, ChartEmpty, ChartSkeleton, EmptyState, MetricCard, PanelError, StatusBadge } from '@/components/common'
 import { CountUp } from '@/components/CountUp'
 import { ActivityTimeline } from '@/components/ActivityTimeline'
+import { AgentRunsCard } from '@/components/AgentRunsCard'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 
@@ -151,6 +152,8 @@ export default function Overview() {
           </CardContent>
         </Card>
       </motion.div>
+
+      <AgentRunsCard />
 
       {/* Autonomous Commerce Quick Links */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

@@ -17,5 +17,11 @@
       "maxDuration": 60,
       "includeFiles": "backend/app/**"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/agent-runs",
+      "schedule": "30 3 * * *"
+    }
+  ]
 }
