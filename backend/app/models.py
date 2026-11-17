@@ -561,3 +561,20 @@ class SchemaVersion(Base):
 
     version: Mapped[int] = mapped_column(Integer, primary_key=True)
     applied_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+# --------------------------------------------------------------------------- scheduled agent runs
+
+class AgentRun(Base):
+    """One pass of the EcomMind agent over a business: on the daily schedule or started by the seller."""
+    __tablename__ = "agent_runs"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    trigger: Mapped[str] = mapped_column(String(12))  # schedule | manual
+    status: Mapped[str] = mapped_column(String(12))  # completed | skipped | failed
+    summary: Mapped[str] = mapped_column(String(500))
+    # [{kind, sku, productName, outcome, detail, ref}]
+    actions: Mapped[list] = mapped_column(JSON, default=list)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())

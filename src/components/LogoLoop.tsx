@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import introSrc from '@/assets/intro/ecommind-intro-landscape.mp4'
+import introMov from '@/assets/intro/ecommind-intro-landscape.mov'
 import { cn } from '@/lib/utils'
 
 const HOLD_MS = 2500 // the finished logo rests on screen between runs
@@ -76,7 +77,6 @@ export default function LogoLoop({ className }: { className?: string }) {
   return (
     <video
       ref={videoRef}
-      src={introSrc}
       className={cn(
         'object-contain transition-opacity ease-out',
         className,
@@ -87,6 +87,9 @@ export default function LogoLoop({ className }: { className?: string }) {
       preload="none"
       aria-hidden
       onEnded={restart}
-    />
+    >
+      <source src={introMov} type='video/mp4; codecs="hvc1"' />
+      <source src={introSrc} type="video/mp4" />
+    </video>
   )
 }

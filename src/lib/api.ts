@@ -414,3 +414,29 @@ export interface Paged<T> {
   page: number
   pageSize: number
 }
+
+export type AgentRunOutcome = 'recommended' | 'queued' | 'waiting' | 'rfq_sent' | 'purchased' | 'applied' | 'skipped' | 'blocked' | 'error'
+
+export interface ApiAgentRunAction {
+  kind: 'restock' | 'price'
+  sku: string
+  productName: string
+  outcome: AgentRunOutcome
+  detail: string
+  ref: string | null
+}
+
+export interface ApiAgentRun {
+  id: string
+  trigger: 'schedule' | 'manual'
+  status: 'completed' | 'skipped' | 'failed'
+  summary: string
+  actions: ApiAgentRunAction[]
+  startedAt: string
+  finishedAt: string | null
+}
+
+export interface ApiAgentRunsResponse {
+  runs: ApiAgentRun[]
+  schedule: { cron: string; label: string; enabled: boolean }
+}

@@ -1,0 +1,19 @@
+# Never uploaded: local secrets, your development database and the Python environment.
+backend/.env
+backend/*.db
+backend/*.db-*
+backend/.venv
+backend/tests
+**/__pycache__
+.pytest_cache
+
+# Not needed to build or run the site.
+.claude
+dist
+docs
+marketing
+node_modules
+info.md
+
+# Local environment files (the CLI writes .env.local).
+.env*
