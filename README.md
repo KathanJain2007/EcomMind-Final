@@ -26,6 +26,15 @@ Sign up with a Gmail address, or use **Demo Login** to explore the
 UrbanNest Living sample business. Wallet funds are simulated top-ups; the
 ledger, escrow and mandate checks run for real on the backend.
 
+## Hosting on Vercel
+
+The site and API deploy together as one Vercel project. `vercel.json` builds the front end and sends
+`/api/*` to the FastAPI app through `api/index.py`, so sign-in cookies stay on one domain. SQLite stays
+the local default; hosted data needs Postgres because a function keeps no files between requests.
+
+Set these in the Vercel project: `DATABASE_URL` (Postgres, added by the Neon integration), `SECRET_KEY`
+(long and random) and `COOKIE_SECURE=true`.
+
 ## Tests
 
 ```bash

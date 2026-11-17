@@ -122,6 +122,8 @@ def migrate(engine: Engine) -> int:
         for version, fn in MIGRATIONS:
             if version in applied:
                 continue
-            fn(conn)
+            # These upgrade old SQLite files. Postgres databases start from the current models.
+            if engine.dialect.name == "sqlite":
+                fn(conn)
             conn.execute(text("INSERT INTO schema_version (version, applied_at) VALUES (:v, CURRENT_TIMESTAMP)"), {"v": version})
     return max(v for v, _ in MIGRATIONS)

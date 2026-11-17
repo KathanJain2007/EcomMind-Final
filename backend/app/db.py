@@ -1,4 +1,8 @@
-"""Database engine and session handling (SQLite via SQLAlchemy 2)."""
+"""Database engine and session handling (SQLAlchemy 2).
+
+SQLite locally. Hosted deployments use Postgres, because a serverless function
+keeps no files between requests.
+"""
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -6,15 +10,37 @@ from collections.abc import Iterator
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from .config import settings
+
+# Any fixed number: every Postgres transaction takes this one advisory lock.
+_WRITE_LOCK_ID = 7203
 
 
 class Base(DeclarativeBase):
     pass
 
 
+def _make_postgres_engine(url: str) -> Engine:
+    # Hosting providers hand out postgres:// URLs; the driver is named explicitly here.
+    url = url.replace("postgres://", "postgresql+psycopg://", 1).replace("postgresql://", "postgresql+psycopg://", 1)
+    # No pool of our own, since functions come and go and the provider's pooler does this.
+    # Prepared statements don't survive a transaction-mode pooler, so they stay off.
+    engine = create_engine(url, poolclass=NullPool, connect_args={"prepare_threshold": None}, future=True)
+
+    @event.listens_for(engine, "begin")
+    def _on_begin(conn):  # pragma: no cover - driver hook
+        # The same guarantee as SQLite's BEGIN IMMEDIATE below: transactions run one at a
+        # time, so counter increments and wallet debits can't race, even across functions.
+        conn.exec_driver_sql(f"SELECT pg_advisory_xact_lock({_WRITE_LOCK_ID})")
+
+    return engine
+
+
 def make_engine(url: str) -> Engine:
+    if url.startswith("postgres"):
+        return _make_postgres_engine(url)
     connect_args = {"check_same_thread": False, "timeout": 30} if url.startswith("sqlite") else {}
     engine = create_engine(url, connect_args=connect_args, future=True)
 
